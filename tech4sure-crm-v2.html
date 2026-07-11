@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tech4Sure">
+<title>Tech4Sure — Review Card CRM</title>
+<!-- v2.0 prospects+sync -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
+  --txt:#f1f5f9; --mut:#94a3b8; --acc:#38bdf8; --grn:#4ade80; --amb:#fbbf24;
+  --red:#f87171; --vio:#a78bfa;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;padding-bottom:76px}
+h1{font-size:1.15rem} h2{font-size:1rem;margin-bottom:8px} h3{font-size:.9rem}
+header{position:sticky;top:0;z-index:50;background:var(--bg);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}
+header .brand{color:var(--acc);font-weight:700}
+.tab{display:none;padding:14px} .tab.active{display:block}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60}
+nav button{flex:1;background:none;border:none;color:var(--mut);padding:9px 0 max(9px, env(safe-area-inset-bottom));font-size:.68rem;cursor:pointer}
+nav button .ic{display:block;font-size:1.25rem;margin-bottom:2px}
+nav button.on{color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.btn{background:var(--acc);color:#082f49;border:none;border-radius:10px;padding:12px 16px;font-size:.95rem;font-weight:600;cursor:pointer;width:100%}
+.btn.sec{background:var(--card2);color:var(--txt);border:1px solid var(--line)}
+.btn.sm{width:auto;padding:8px 12px;font-size:.82rem}
+.btn.danger{background:#7f1d1d;color:#fecaca}
+.btn:active{opacity:.75}
+.row{display:flex;gap:8px} .row .btn{flex:1}
+input,select,textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:11px;font-size:16px;margin-bottom:10px}
+textarea{min-height:70px;resize:vertical}
+label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+.chip{white-space:nowrap;background:var(--card2);border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:6px 12px;font-size:.78rem;cursor:pointer}
+.chip.on{background:var(--acc);color:#082f49;border-color:var(--acc);font-weight:600}
+.badge{display:inline-block;border-radius:999px;padding:3px 9px;font-size:.7rem;font-weight:600}
+.s-nv{background:#33415577;color:#cbd5e1}.s-v{background:#0ea5e933;color:#7dd3fc}
+.s-i{background:#a78bfa33;color:#c4b5fd}.s-f{background:#fbbf2433;color:#fde68a}
+.s-t{background:#4ade8033;color:#86efac}.s-p{background:#4ade80;color:#052e16}
+.s-d{background:#f8717133;color:#fca5a5}
+.trial-g{background:#14532d;color:#86efac}.trial-a{background:#713f12;color:#fde68a}
+.trial-r{background:#7f1d1d;color:#fecaca}.trial-x{background:#334155;color:#94a3b8}
+.biz{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;cursor:pointer}
+.biz .nm{font-weight:600;margin-bottom:3px}
+.biz .meta{font-size:.78rem;color:var(--mut);margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.stat .v{font-size:1.5rem;font-weight:700;color:var(--acc)} .stat .l{font-size:.7rem;color:var(--mut);margin-top:2px}
+.stat .v.grn{color:var(--grn)} .stat .v.amb{color:var(--amb)} .stat .v.vio{color:var(--vio)}
+.bar{background:var(--card2);border-radius:999px;height:12px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--grn);border-radius:999px;transition:width .3s}
+.modal{display:none;position:fixed;inset:0;background:#000a;z-index:100;overflow-y:auto}
+.modal.open{display:block}
+.sheet{background:var(--bg);min-height:100%;padding:16px;max-width:560px;margin:0 auto}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.x{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:7px 13px;font-size:1rem;cursor:pointer}
+.acc-item{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.acc-item>button{width:100%;background:var(--card);color:var(--txt);border:none;padding:13px;text-align:left;font-size:.9rem;font-weight:600;cursor:pointer}
+.acc-item>div{display:none;padding:12px 14px;background:var(--card2);font-size:.88rem;line-height:1.55;color:#e2e8f0}
+.acc-item.open>div{display:block}
+.script{font-size:1.12rem;line-height:1.7;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;white-space:pre-wrap}
+.check{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:.92rem}
+.check:last-child{border:none}
+.check input{width:22px;height:22px;margin:0;accent-color:var(--grn)}
+.check.done span{color:var(--mut);text-decoration:line-through}
+.fab{position:fixed;bottom:84px;right:18px;width:56px;height:56px;border-radius:50%;background:var(--acc);color:#082f49;border:none;font-size:1.9rem;font-weight:700;z-index:55;box-shadow:0 4px 14px #0008;cursor:pointer;display:none}
+.fab.show{display:block}
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--grn);color:#052e16;padding:10px 20px;border-radius:999px;font-weight:600;font-size:.85rem;z-index:200;display:none;white-space:nowrap}
+.small{font-size:.78rem;color:var(--mut)} .mb0{margin-bottom:0}
+.due{border-left:3px solid var(--amb)}
+.overdue{border-left:3px solid var(--red)}
+.link{color:var(--acc);text-decoration:none;font-size:.85rem}
+.qrbox{background:#fff;padding:14px;border-radius:12px;display:flex;justify-content:center;margin:10px 0}
+.knock{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.knock .big{font-size:2rem;font-weight:800;color:var(--grn)}
+.knock button{width:52px;height:52px;border-radius:50%;font-size:1.5rem;background:var(--card2);color:var(--txt);border:1px solid var(--line);cursor:pointer}
+hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="brand" id="hdrBrand">Tech4Sure</span> <span style="font-weight:400;color:var(--mut)">CRM</span></h1>
+  <span class="small" id="hdrCount"></span>
+</header>
+
+<!-- ============ DASHBOARD ============ -->
+<div class="tab active" id="tab-dash">
+  <div class="card knock">
+    <div>
+      <div class="small">Doors knocked today</div>
+      <span class="big" id="knockCount">0</span> <span class="small">/ <span id="knockGoal">30</span> goal</span>
+      <div class="bar" style="width:150px"><i id="knockBar" style="width:0%"></i></div>
+      <div class="small" id="paceLine"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="knock(-1)">−</button>
+      <button onclick="knock(1)" style="background:var(--acc);color:#082f49;border:none">＋</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="stat"><div class="v" id="stVisitedToday">0</div><div class="l">Visited today</div></div>
+    <div class="stat"><div class="v" id="stVisitedWeek">0</div><div class="l">Visited this week</div></div>
+    <div class="stat"><div class="v grn" id="stTrials">0</div><div class="l">Active trials</div></div>
+    <div class="stat"><div class="v amb" id="stEnding">0</div><div class="l">Trials ending ≤5d</div></div>
+    <div class="stat"><div class="v vio" id="stConv">0%</div><div class="l">Visit → paid conversion</div></div>
+    <div class="stat"><div class="v grn" id="stMRR">$0</div><div class="l">MRR</div></div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h2>📅 Follow-ups due</h2>
+    <div id="dueList"><p class="small">Nothing due. Go knock doors.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>⏳ Trials ending soon</h2>
+    <div id="endingList"><p class="small">No trials close to day 30.</p></div>
+  </div>
+</div>
+
+<!-- ============ LEADS ============ -->
+<div class="tab" id="tab-leads">
+  <input type="search" id="q" placeholder="🔍 Search name, address, phone…" oninput="renderLeads()">
+  <div class="chips" id="statusChips"></div>
+  <div class="chips">
+    <span class="small" style="padding:6px 4px 0 0">Sort:</span>
+    <button class="chip on" data-sort="new" onclick="setSort('new',this)">Newest</button>
+    <button class="chip" data-sort="follow" onclick="setSort('follow',this)">Follow-up</button>
+    <button class="chip" data-sort="street" onclick="setSort('street',this)">Street</button>
+    <button class="chip" data-sort="name" onclick="setSort('name',this)">A–Z</button>
+  </div>
+  <div id="leadList"></div>
+</div>
+
+<!-- ============ PROSPECTS ============ -->
+<div class="tab" id="tab-pros">
+  <div class="card">
+    <h2>🎯 Find & score prospects</h2>
+    <input id="huntQ" placeholder='e.g. "barbers in Frisco TX" or "restaurants near 75035"'>
+    <button class="btn" onclick="hunt()">🔍 Search & analyze area</button>
+    <p class="small" style="margin-top:8px">Scores who needs you most: few reviews, no website, weak rating, high-traffic type. Needs Team Sync backend (Settings).</p>
+  </div>
+  <div class="row" style="margin-bottom:10px">
+    <button class="btn sec" onclick="routeSelected()">🗺 Route selected</button>
+    <button class="btn" onclick="routeTop()">⚡ Route my top 10</button>
+  </div>
+  <div id="prosList"></div>
+</div>
+
+<!-- ============ PITCH ============ -->
+<div class="tab" id="tab-pitch">
+  <h2>🎤 30-Second Door Script</h2>
+  <div class="script" id="pitchScript"></div>
+
+  <h2 style="margin-top:16px">🛡️ Objection Handling</h2>
+  <div id="objections"></div>
+
+  <h2 style="margin-top:16px">✅ Pre-Visit Checklist <span class="small">(resets daily)</span></h2>
+  <div class="card" id="checklist"></div>
+
+  <h2 style="margin-top:16px">⚡ Quick Actions</h2>
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn" onclick="copyStripe('seo')">💳 Copy SEO plan link</button>
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="copyStripe('web')">💳 Copy SEO+Website link</button>
+    </div>
+    <p class="small" style="margin-top:10px">Set your Stripe payment links in Settings.</p>
+  </div>
+</div>
+
+<!-- ============ SETTINGS ============ -->
+<div class="tab" id="tab-set">
+  <div class="card">
+    <h2>⚙️ Business</h2>
+    <label>Brand name</label><input id="sBrand">
+    <label>Your name (shown on proposals)</label><input id="sRep">
+    <label>Daily door goal</label><input id="sGoal" type="number" inputmode="numeric">
+    <label>Workday end (pace deadline)</label><input id="sEnd" type="time">
+  </div>
+  <div class="card">
+    <h2>🔄 Team Sync — shared database</h2>
+    <label>Backend URL (Apps Script /exec)</label><input id="sBackend" placeholder="https://script.google.com/macros/s/…/exec">
+    <label>Team key</label><input id="sKey" placeholder="same key set in Script Properties">
+    <button class="btn sec" onclick="syncNow(false)">🔄 Sync now</button>
+    <p class="small" style="margin-top:8px">Auto-syncs on app open. Setup steps in SETUP-PROSPECTING-AND-SYNC.md.</p>
+  </div>
+  <div class="card">
+    <h2>💳 Stripe Payment Links</h2>
+    <label>SEO plan link</label><input id="sStripeSeo" placeholder="https://buy.stripe.com/…">
+    <label>SEO + Website plan link</label><input id="sStripeWeb" placeholder="https://buy.stripe.com/…">
+  </div>
+  <div class="card">
+    <h2>💰 Pricing ($/mo)</h2>
+    <div class="two">
+      <div><label>SEO — standard</label><input id="sPriceSeo" type="number" inputmode="decimal"></div>
+      <div><label>Website add-on — standard</label><input id="sPriceWeb" type="number" inputmode="decimal"></div>
+      <div><label>SEO — intro discount</label><input id="sIntroSeo" type="number" inputmode="decimal"></div>
+      <div><label>Website — intro discount</label><input id="sIntroWeb" type="number" inputmode="decimal"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>📝 Door Script</h2>
+    <textarea id="sScript" style="min-height:140px"></textarea>
+  </div>
+  <button class="btn" onclick="saveSettings()">Save settings</button>
+  <hr>
+  <div class="card">
+    <h2>💾 Backup & Data</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn sec" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="btn sec" onclick="exportJSON()">⬇ Backup JSON</button>
+    </div>
+    <div class="row">
+      <button class="btn sec" onclick="document.getElementById('impCsv').click()">⬆ Import CSV</button>
+      <button class="btn sec" onclick="document.getElementById('impJson').click()">⬆ Restore JSON</button>
+    </div>
+    <input type="file" id="impCsv" accept=".csv" style="display:none" onchange="importCSV(this)">
+    <input type="file" id="impJson" accept=".json" style="display:none" onchange="importJSON(this)">
+    <p class="small" style="margin-top:10px">With Team Sync on, the Google Sheet is the master backup. CSV/JSON export still works as a local safety net.</p>
+  </div>
+  <button class="btn danger" onclick="wipe()">Delete ALL data</button>
+</div>
+
+<!-- Bottom nav -->
+<nav>
+  <button class="on" data-t="dash" onclick="showTab('dash',this)"><span class="ic">📊</span>Dashboard</button>
+  <button data-t="leads" onclick="showTab('leads',this)"><span class="ic">📋</span>Leads</button>
+  <button data-t="pros" onclick="showTab('pros',this)"><span class="ic">🎯</span>Prospects</button>
+  <button data-t="pitch" onclick="showTab('pitch',this)"><span class="ic">🎤</span>Pitch</button>
+  <button data-t="set" onclick="showTab('set',this)"><span class="ic">⚙️</span>Settings</button>
+</nav>
+
+<button class="fab" id="fab" onclick="openForm()">＋</button>
+<div class="toast" id="toast"></div>
+
+<!-- ============ ADD/EDIT MODAL ============ -->
+<div class="modal" id="mForm"><div class="sheet">
+  <div class="sheet-head"><h2 id="formTitle" class="mb0">Add business</h2><button class="x" onclick="closeM('mForm')">✕</button></div>
+  <input type="hidden" id="fId">
+  <label>Business name *</label><input id="fName">
+  <label>Type</label>
+  <select id="fType"><option></option><option>Restaurant</option><option>Barber / Salon</option><option>Auto shop</option><option>Retail</option><option>Dentist / Medical</option><option>Gym</option><option>Cafe</option><option>Contractor / Trades</option><option>Other</option></select>
+  <label>Address</label><input id="fAddr" placeholder="123 Main St, City">
+  <label>Phone</label><input id="fPhone" type="tel">
+  <label>Contact name</label><input id="fContact">
+  <label>Status</label><select id="fStatus"></select>
+  <label>Google review URL</label><input id="fReview" placeholder="https://search.google.com/local/writereview?placeid=…">
+  <div class="row" style="margin-bottom:10px">
+    <input id="fPlace" placeholder="…or paste Place ID" style="margin-bottom:0">
+    <button class="btn sm sec" style="flex:0 0 auto" onclick="buildLink()">Build link</button>
+  </div>
+  <p class="small" style="margin-bottom:10px">Find the Place ID with Google's <a class="link" href="https://developers.google.com/maps/documentation/places/web-service/place-id#find-id" target="_blank">Place ID finder</a>, or tap "Find on Maps" after saving. Prospects added from the 🎯 tab get this automatically.</p>
+  <div class="two">
+    <div><label>NFC card ID</label><input id="fNfc" placeholder="e.g. T4S-001"></div>
+    <div><label>Has website?</label><select id="fWeb"><option value="">Unknown</option><option value="yes">Yes</option><option value="no">No → upsell!</option></select></div>
+    <div><label>Trial start date</label><input id="fTrial" type="date"></div>
+    <div><label>Next follow-up</label><input id="fFollow" type="date"></div>
+    <div><label>Reviews at signup</label><input id="fRev0" type="number" inputmode="numeric"></div>
+    <div><label>Reviews now</label><input id="fRev1" type="number" inputmode="numeric"></div>
+  </div>
+  <label>Plan</label>
+  <select id="fPlan"><option value="">None yet</option><option value="seo">SEO only</option><option value="seo+web">SEO + Website</option></select>
+  <div class="check" style="border:none;margin-bottom:6px"><input type="checkbox" id="fIntro"><span>Intro discount pricing</span></div>
+  <label>GoHighLevel pipeline / automation notes</label><input id="fGhl" placeholder="e.g. Trial Nurture pipeline, SMS seq #2">
+  <label>Notes / decline reason</label><textarea id="fNotes"></textarea>
+  <button class="btn" onclick="saveBiz()">Save</button>
+  <div style="height:30px"></div>
+</div></div>
+
+<!-- ============ DETAIL MODAL ============ -->
+<div class="modal" id="mDetail"><div class="sheet" id="detailBody"></div></div>
+
+<!-- ============ QR MODAL ============ -->
+<div class="modal" id="mQr"><div class="sheet">
+  <div class="sheet-head"><h2 class="mb0">QR code — review link</h2><button class="x" onclick="closeM('mQr')">✕</button></div>
+  <div class="qrbox"><div id="qrTarget"></div></div>
+  <p class="small" id="qrUrl" style="word-break:break-all"></p>
+  <p class="small">Screenshot this and print it as a table tent / sticker backup for businesses whose customers won't tap NFC.</p>
+</div></div>
+
+<script>
+/* ================= STATE ================= */
+const KEY='tech4sure_crm_v1';
+const STATUSES=['Not Visited','Visited','Interested','Follow-Up','Trial Started','Paying Customer','Declined'];
+const SCLASS={'Not Visited':'s-nv','Visited':'s-v','Interested':'s-i','Follow-Up':'s-f','Trial Started':'s-t','Paying Customer':'s-p','Declined':'s-d'};
+const DEFAULT_SCRIPT="Hi, I'm {rep} with {brand} — I'll take 30 seconds, promise.\n\nQuick question: when's the last time a customer left you a Google review?\n\n[pause]\n\nMost owners tell me customers say they will, then forget. So we made this — a tap card. Customer taps their phone on it, your review page opens instantly. No app, no typing, no searching.\n\nHere's the deal: the card is FREE today, and I'll throw in 30 days of our Google ranking service free — we optimize your profile so you show up higher when people search nearby.\n\nIf you don't see more reviews in 30 days, you keep the card and walk away. Nothing to lose. Where's a good spot by your register?";
+const OBJECTIONS=[
+ ["“I'm not interested.”","Totally fair — most owners say that before they see it work. Can I do a 10-second demo? Tap my phone on the card… see, review page. That's it. The card is free either way — worst case you get more Google reviews for nothing."],
+ ["“How much is it?”","The card is free, and the first 30 days of the ranking service are free too. After that it's just {priceSeo}/mo — and I'm doing an intro rate of {introSeo}/mo for the first businesses on this street. Cancel anytime; you keep the card."],
+ ["“I already have plenty of reviews.”","That's great — it means reviews are already bringing you business. But Google ranks on review RECENCY, not just count. A business getting 5 fresh reviews a month beats one with 200 old ones. This keeps them coming without you asking."],
+ ["“I need to think about it / ask my partner.”","Of course. Tell you what — I'll leave the card installed today so you can watch it work while you decide. The 30-day clock starts when YOU say so. When's a good day to swing back — Tuesday or Thursday?"],
+ ["“Is this a scam? What's the catch?”","Fair question. No catch: the card just opens YOUR public Google review page — same link Google gives you. I make money only if the 30-day trial gets you results and you choose to subscribe. If not, you keep the free card and we part friends."],
+ ["“I don't have a website.”","Even better — that's exactly who we help most. Your Google profile IS your website for local customers. And if you want a real site, we build one for just {priceWeb}/mo extra on the plan. Most shops around here pay 10x that."]
+];
+const CHECKLIST=['NFC cards in pocket','Phone charged + power bank','Tested a card tap this morning','Stripe payment links working','Business cards / flyers','Water + good shoes 😄'];
+
+let S=load();
+S.prospects=S.prospects||[];
+S.settings=Object.assign({backend:'',teamKey:'',endTime:'17:00'},S.settings);
+function load(){
+  try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.biz)return d;}catch(e){}
+  return {biz:[],knocks:{},checks:{},prospects:[],settings:{
+    brand:'Tech4Sure',rep:'',goal:30,stripeSeo:'',stripeWeb:'',
+    priceSeo:97,priceWeb:30,introSeo:50,introWeb:10,script:DEFAULT_SCRIPT,
+    backend:'',teamKey:'',endTime:'17:00'}};
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+
+/* ================= HELPERS ================= */
+const $=id=>document.getElementById(id);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function daysFrom(dateStr){return Math.floor((new Date(today())-new Date(dateStr))/864e5);}
+function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._x);t._x=setTimeout(()=>t.style.display='none',1800);}
+function copy(txt,msg){navigator.clipboard.writeText(txt).then(()=>toast(msg||'Copied!')).catch(()=>{prompt('Copy this:',txt);});}
+function price(b){
+  if(b.customPrice)return +b.customPrice;
+  const s=S.settings;let p=b.intro?+s.introSeo:+s.priceSeo;
+  if(b.plan==='seo+web')p+=b.intro?+s.introWeb:+s.priceWeb;
+  return b.plan?p:0;
+}
+function trialInfo(b){
+  if(!b.trialStart)return null;
+  const used=daysFrom(b.trialStart),left=30-used;
+  let cls='trial-g';if(left<=3)cls='trial-r';else if(left<=10)cls='trial-a';
+  if(left<0)return{left,label:'Trial ended '+(-left)+'d ago',cls:'trial-x'};
+  return{left,label:left+' days left in trial',cls};
+}
+function streetOf(addr){
+  if(!addr)return'zzz';
+  const m=addr.match(/^\s*[\d\-\w]*\s+(.+?)(,|$)/);
+  return (m?m[1]:addr).toLowerCase().trim();
+}
+
+/* ================= NAV ================= */
+function showTab(t,btn){
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  $('tab-'+t).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  $('fab').classList.toggle('show',t==='leads');
+  if(t==='dash')renderDash();
+  if(t==='leads')renderLeads();
+  if(t==='pros')renderPros();
+  if(t==='pitch')renderPitch();
+  if(t==='set')renderSettings();
+}
+function closeM(id){$(id).classList.remove('open');}
+
+/* ================= DASHBOARD ================= */
+function knock(n){
+  const t=today();S.knocks[t]=Math.max(0,(S.knocks[t]||0)+n);save();renderDash();
+}
+function renderDash(){
+  const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
+  $('knockCount').textContent=k;$('knockGoal').textContent=goal;
+  $('knockBar').style.width=Math.min(100,k/goal*100)+'%';
+  const wk=d=>daysFrom(d)<7;
+  const visited=S.biz.filter(b=>b.visitedAt);
+  $('stVisitedToday').textContent=visited.filter(b=>b.visitedAt===t).length;
+  $('stVisitedWeek').textContent=visited.filter(b=>wk(b.visitedAt)).length;
+  const trials=S.biz.filter(b=>b.status==='Trial Started'&&b.trialStart&&daysFrom(b.trialStart)<=30);
+  $('stTrials').textContent=trials.length;
+  const ending=trials.filter(b=>30-daysFrom(b.trialStart)<=5);
+  $('stEnding').textContent=ending.length;
+  const paying=S.biz.filter(b=>b.status==='Paying Customer');
+  $('stConv').textContent=(visited.length?Math.round(paying.length/visited.length*100):0)+'%';
+  $('stMRR').textContent='$'+paying.reduce((a,b)=>a+price(b),0);
+  const goalLeft=goal-k,now=new Date(),end=new Date(t+'T'+(S.settings.endTime||'17:00'));
+  const minsLeft=Math.round((end-now)/6e4);
+  $('paceLine').textContent=goalLeft<=0?'🎉 Goal hit — keep going!':(minsLeft>0?goalLeft+' doors left — one every '+Math.max(1,Math.floor(minsLeft/goalLeft))+' min to finish by '+(S.settings.endTime||'17:00'):goalLeft+' doors short of goal today');
+  const due=S.biz.filter(b=>b.followUp&&b.followUp<=t&&!['Paying Customer','Declined'].includes(b.status))
+    .sort((a,b)=>a.followUp<b.followUp?-1:1);
+  $('dueList').innerHTML=due.length?due.map(b=>bizCard(b,b.followUp<t?'overdue':'due')).join(''):'<p class="small">Nothing due. Go knock doors.</p>';
+  $('endingList').innerHTML=ending.length?ending.map(b=>bizCard(b)).join(''):'<p class="small">No trials close to day 30.</p>';
+  $('hdrCount').textContent=S.biz.length+' businesses';
+}
+
+/* ================= LEADS ================= */
+let filterStatus='All',sortBy='new';
+function setSort(s,btn){sortBy=s;document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderLeads();}
+function renderChips(){
+  const counts={All:S.biz.length};STATUSES.forEach(s=>counts[s]=S.biz.filter(b=>b.status===s).length);
+  $('statusChips').innerHTML=['All',...STATUSES].map(s=>
+    `<button class="chip ${filterStatus===s?'on':''}" onclick="filterStatus='${s}';renderLeads()">${s} (${counts[s]||0})</button>`).join('');
+}
+function bizCard(b,extra){
+  const ti=trialInfo(b);
+  return `<div class="biz ${extra||''}" onclick="openDetail('${b.id}')">
+    <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
+    ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
+    ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}</div>
+    <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}
+    ${b.followUp?' · 📅 '+esc(b.followUp):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
+  </div>`;
+}
+function renderLeads(){
+  renderChips();
+  const q=($('q').value||'').toLowerCase();
+  let list=S.biz.filter(b=>filterStatus==='All'||b.status===filterStatus);
+  if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
+  if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
+  if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
+  if(sortBy==='follow')list.sort((a,b)=>(a.followUp||'9999')<(b.followUp||'9999')?-1:1);
+  if(sortBy==='street')list.sort((a,b)=>streetOf(a.address).localeCompare(streetOf(b.address)));
+  let html='';
+  if(sortBy==='street'){
+    let cur=null;
+    list.forEach(b=>{const st=streetOf(b.address);
+      if(st!==cur){cur=st;html+=`<h3 style="margin:12px 0 8px;color:var(--acc);text-transform:capitalize">📍 ${esc(st==='zzz'?'No address':st)}</h3>`;}
+      html+=bizCard(b);});
+  }else html=list.map(b=>bizCard(b)).join('');
+  $('leadList').innerHTML=html||'<div class="card"><p class="small">No businesses yet. Tap ＋ to add your first door, or find some in the 🎯 Prospects tab.</p></div>';
+}
+
+/* ================= FORM ================= */
+function openForm(id){
+  const b=id?S.biz.find(x=>x.id===id):null;
+  $('formTitle').textContent=b?'Edit business':'Add business';
+  $('fId').value=b?b.id:'';
+  $('fStatus').innerHTML=STATUSES.map(s=>`<option>${s}</option>`).join('');
+  const set=(f,v)=>$(f).value=v==null?'':v;
+  set('fName',b&&b.name);set('fType',b&&b.type);set('fAddr',b&&b.address);
+  set('fPhone',b&&b.phone);set('fContact',b&&b.contact);set('fStatus',b?b.status:'Not Visited');
+  set('fReview',b&&b.reviewUrl);set('fPlace',b&&b.placeId);set('fNfc',b&&b.nfc);
+  set('fWeb',b?b.hasWebsite:'');set('fTrial',b&&b.trialStart);set('fFollow',b&&b.followUp);
+  set('fRev0',b&&b.reviewsStart);set('fRev1',b&&b.reviewsNow);set('fPlan',b?b.plan:'');
+  $('fIntro').checked=b?!!b.intro:true;
+  set('fGhl',b&&b.ghl);set('fNotes',b&&b.notes);
+  $('mForm').classList.add('open');window.scrollTo(0,0);
+}
+function buildLink(){
+  const p=$('fPlace').value.trim();
+  if(!p)return toast('Paste a Place ID first');
+  $('fReview').value='https://search.google.com/local/writereview?placeid='+p;
+  toast('Review link built ✓');
+}
+function saveBiz(){
+  const name=$('fName').value.trim();
+  if(!name)return toast('Name is required');
+  const id=$('fId').value||('b'+Date.now());
+  let b=S.biz.find(x=>x.id===id);
+  if(!b){b={id,createdAt:new Date().toISOString()};S.biz.push(b);}
+  Object.assign(b,{
+    name,type:$('fType').value,address:$('fAddr').value.trim(),phone:$('fPhone').value.trim(),
+    contact:$('fContact').value.trim(),status:$('fStatus').value,reviewUrl:$('fReview').value.trim(),
+    placeId:$('fPlace').value.trim(),nfc:$('fNfc').value.trim(),hasWebsite:$('fWeb').value,
+    trialStart:$('fTrial').value,followUp:$('fFollow').value,
+    reviewsStart:$('fRev0').value,reviewsNow:$('fRev1').value,
+    plan:$('fPlan').value,intro:$('fIntro').checked,ghl:$('fGhl').value.trim(),notes:$('fNotes').value.trim(),
+    updatedAt:new Date().toISOString()
+  });
+  if(b.status!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
+  if(b.status==='Trial Started'&&!b.trialStart){b.trialStart=today();}
+  save();closeM('mForm');renderLeads();renderDash();toast('Saved ✓');
+}
+
+/* ================= DETAIL ================= */
+function openDetail(id){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const ti=trialInfo(b);
+  const growth=(b.reviewsStart!==''&&b.reviewsNow!==''&&b.reviewsStart!=null&&b.reviewsNow!=null&&b.reviewsStart!==undefined)?(+b.reviewsNow-+b.reviewsStart):null;
+  $('detailBody').innerHTML=`
+  <div class="sheet-head"><h2 class="mb0">${esc(b.name)}</h2><button class="x" onclick="closeM('mDetail')">✕</button></div>
+  <div style="margin-bottom:12px">
+    <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
+    ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
+    ${b.plan?`<span class="badge s-p">$${price(b)}/mo${b.intro?' (intro)':''}</span>`:''}
+  </div>
+  <div class="card small" style="line-height:1.9">
+    ${b.type?'🏷 '+esc(b.type)+'<br>':''}
+    ${b.address?'📍 '+esc(b.address)+'<br>':''}
+    ${b.phone?'📞 <a class="link" href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a><br>':''}
+    ${b.contact?'👤 '+esc(b.contact)+'<br>':''}
+    ${b.nfc?'🪪 NFC card: '+esc(b.nfc)+'<br>':''}
+    ${b.followUp?'📅 Follow-up: '+esc(b.followUp)+'<br>':''}
+    ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
+    ${growth!=null&&!isNaN(growth)?'⭐ Reviews: '+esc(b.reviewsStart)+' → '+esc(b.reviewsNow)+' (<b style="color:var(--grn)">+'+growth+'</b>)<br>':''}
+    ${b.ghl?'🔗 GHL: '+esc(b.ghl)+'<br>':''}
+    ${b.notes?'📝 '+esc(b.notes):''}
+  </div>
+  <label>Quick status change</label>
+  <select onchange="quickStatus('${b.id}',this.value)">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select>
+  <div class="row" style="margin-bottom:8px">
+    ${b.reviewUrl?`<button class="btn" onclick="copy('${esc(b.reviewUrl)}','Review link copied!')">⭐ Copy review link</button>`:`<button class="btn sec" onclick="findMaps('${b.id}')">🔎 Find on Maps</button>`}
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" onclick="openMaps('${b.id}')">🗺 Navigate</button>
+    ${b.reviewUrl?`<button class="btn sec" onclick="showQR('${b.id}')">▦ QR code</button>`:''}
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" onclick="copyStripe('seo')">💳 SEO link</button>
+    <button class="btn sec" onclick="copyStripe('web')">💳 SEO+Web link</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" onclick="proposal('${b.id}',false)">📄 Copy proposal</button>
+    ${b.phone?`<button class="btn sec" onclick="proposal('${b.id}',true)">💬 Text proposal</button>`:''}
+  </div>
+  <div class="row">
+    <button class="btn sec" onclick="closeM('mDetail');openForm('${b.id}')">✏️ Edit</button>
+    <button class="btn danger" onclick="delBiz('${b.id}')">🗑 Delete</button>
+  </div>
+  <div style="height:30px"></div>`;
+  $('mDetail').classList.add('open');window.scrollTo(0,0);
+}
+function quickStatus(id,st){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  b.status=st;b.updatedAt=new Date().toISOString();
+  if(st!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
+  if(st==='Trial Started'&&!b.trialStart)b.trialStart=today();
+  save();openDetail(id);renderLeads();renderDash();toast('Status → '+st);
+}
+function openMaps(id){
+  const b=S.biz.find(x=>x.id===id);
+  window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(b.address||b.name),'_blank');
+}
+function findMaps(id){
+  const b=S.biz.find(x=>x.id===id);
+  window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(b.name+' '+(b.address||'')),'_blank');
+  toast('Find them on Maps, then grab the Place ID');
+}
+function delBiz(id){
+  if(!confirm('Delete this business?'))return;
+  S.biz=S.biz.filter(x=>x.id!==id);save();closeM('mDetail');renderLeads();renderDash();
+}
+function showQR(id){
+  const b=S.biz.find(x=>x.id===id);if(!b||!b.reviewUrl)return;
+  $('qrTarget').innerHTML='';$('qrUrl').textContent=b.reviewUrl;
+  if(typeof QRCode!=='undefined'){new QRCode($('qrTarget'),{text:b.reviewUrl,width:220,height:220});}
+  else $('qrTarget').innerHTML='<p style="color:#000">Offline — QR library not loaded. URL below.</p>';
+  $('mQr').classList.add('open');
+}
+function proposal(id,sms){
+  const b=S.biz.find(x=>x.id===id),s=S.settings;
+  const seo=b.intro?s.introSeo:s.priceSeo,web=b.intro?s.introWeb:s.priceWeb;
+  const txt=`Hi${b.contact?' '+b.contact:''}! ${s.rep?s.rep+' from ':''}${s.brand} here — great meeting you at ${b.name}.
+
+Here's what we talked about:
+✅ FREE NFC review card (customers tap → your Google review page opens)
+✅ 30-day FREE trial of our Google ranking service (profile optimization, review growth, monthly report)
+✅ After the trial: just $${seo}/mo, cancel anytime${b.hasWebsite==='no'?`
+✅ Optional: we build + host your website for only $${web}/mo more`:''}
+
+More reviews = higher on Google = more customers walking in.
+
+Start your free trial here: ${b.plan==='seo+web'?(s.stripeWeb||'[payment link]'):(s.stripeSeo||'[payment link]')}
+
+Questions? Just reply here. — ${s.rep||s.brand}`;
+  if(sms&&b.phone){window.open('sms:'+b.phone+'?&body='+encodeURIComponent(txt));}
+  else copy(txt,'Proposal copied!');
+}
+function copyStripe(which){
+  const l=which==='web'?S.settings.stripeWeb:S.settings.stripeSeo;
+  if(!l)return toast('Set your Stripe link in Settings first');
+  copy(l,'Payment link copied!');
+}
+
+/* ================= PITCH ================= */
+function fillVars(t){
+  const s=S.settings;
+  return t.replace(/{brand}/g,s.brand).replace(/{rep}/g,s.rep||'your local rep')
+   .replace(/{priceSeo}/g,'$'+s.priceSeo).replace(/{introSeo}/g,'$'+s.introSeo)
+   .replace(/{priceWeb}/g,'$'+s.priceWeb).replace(/{introWeb}/g,'$'+s.introWeb);
+}
+function renderPitch(){
+  $('pitchScript').textContent=fillVars(S.settings.script||DEFAULT_SCRIPT);
+  $('objections').innerHTML=OBJECTIONS.map((o,i)=>
+    `<div class="acc-item" id="acc${i}"><button onclick="document.getElementById('acc${i}').classList.toggle('open')">${esc(o[0])}</button><div>${esc(fillVars(o[1]))}</div></div>`).join('');
+  const t=today();if(!S.checks[t])S.checks={[t]:{}};
+  $('checklist').innerHTML=CHECKLIST.map((c,i)=>
+    `<div class="check ${S.checks[t][i]?'done':''}"><input type="checkbox" ${S.checks[t][i]?'checked':''} onchange="tickCheck(${i},this.checked)"><span>${esc(c)}</span></div>`).join('');
+}
+function tickCheck(i,v){const t=today();if(!S.checks[t])S.checks={[t]:{}};S.checks[t][i]=v;save();renderPitch();}
+
+/* ================= SETTINGS ================= */
+function renderSettings(){
+  const s=S.settings;
+  $('sBrand').value=s.brand;$('sRep').value=s.rep;$('sGoal').value=s.goal;
+  $('sStripeSeo').value=s.stripeSeo;$('sStripeWeb').value=s.stripeWeb;
+  $('sPriceSeo').value=s.priceSeo;$('sPriceWeb').value=s.priceWeb;
+  $('sIntroSeo').value=s.introSeo;$('sIntroWeb').value=s.introWeb;
+  $('sScript').value=s.script||DEFAULT_SCRIPT;
+  $('sEnd').value=s.endTime||'17:00';$('sBackend').value=s.backend||'';$('sKey').value=s.teamKey||'';
+}
+function saveSettings(){
+  const s=S.settings;
+  s.brand=$('sBrand').value.trim()||'Tech4Sure';s.rep=$('sRep').value.trim();
+  s.goal=+$('sGoal').value||30;
+  s.stripeSeo=$('sStripeSeo').value.trim();s.stripeWeb=$('sStripeWeb').value.trim();
+  s.priceSeo=+$('sPriceSeo').value||97;s.priceWeb=+$('sPriceWeb').value||30;
+  s.introSeo=+$('sIntroSeo').value||50;s.introWeb=+$('sIntroWeb').value||10;
+  s.script=$('sScript').value;
+  s.endTime=$('sEnd').value||'17:00';s.backend=$('sBackend').value.trim();s.teamKey=$('sKey').value.trim();
+  $('hdrBrand').textContent=s.brand;
+  save();toast('Settings saved ✓');
+}
+
+/* ================= EXPORT / IMPORT ================= */
+const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
+function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function download(name,content,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();
+}
+function exportCSV(){
+  const rows=[CSV_COLS.join(',')];
+  S.biz.forEach(b=>rows.push(CSV_COLS.map(c=>csvCell(b[c])).join(',')));
+  download('tech4sure-leads-'+today()+'.csv',rows.join('\n'),'text/csv');
+  toast('CSV exported');
+}
+function exportJSON(){
+  download('tech4sure-backup-'+today()+'.json',JSON.stringify(S,null,1),'application/json');
+  toast('Backup exported');
+}
+function parseCSV(text){
+  const rows=[];let row=[],cell='',inQ=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(inQ){
+      if(c==='"'&&text[i+1]==='"'){cell+='"';i++;}
+      else if(c==='"')inQ=false;
+      else cell+=c;
+    }else if(c==='"')inQ=true;
+    else if(c===','){row.push(cell);cell='';}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(x=>x!==''))rows.push(row);row=[];}
+    else cell+=c;
+  }
+  if(cell!==''||row.length){row.push(cell);if(row.some(x=>x!==''))rows.push(row);}
+  return rows;
+}
+function importCSV(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const rows=parseCSV(r.result);
+    if(!rows.length)return toast('Empty file');
+    const head=rows[0].map(h=>h.trim());
+    let added=0,updated=0;
+    rows.slice(1).forEach(cells=>{
+      const o={};head.forEach((h,i)=>{if(CSV_COLS.includes(h))o[h]=cells[i]!==undefined?cells[i]:'';});
+      if(!o.name)return;
+      o.intro=(o.intro==='true'||o.intro==='TRUE'||o.intro==='1');
+      let ex=S.biz.find(b=>b.name.toLowerCase()===o.name.toLowerCase()&&(b.address||'').toLowerCase()===(o.address||'').toLowerCase());
+      if(ex){Object.assign(ex,o);ex.updatedAt=new Date().toISOString();updated++;}
+      else{o.id='b'+Date.now()+Math.random().toString(36).slice(2,6);o.createdAt=o.createdAt||new Date().toISOString();o.updatedAt=new Date().toISOString();if(!STATUSES.includes(o.status))o.status='Not Visited';S.biz.push(o);added++;}
+    });
+    save();renderLeads();renderDash();toast(added+' added, '+updated+' updated');
+  };
+  r.readAsText(f);inp.value='';
+}
+function importJSON(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{const d=JSON.parse(r.result);
+      if(!d.biz||!d.settings)throw 0;
+      if(!confirm('Replace ALL current data with this backup?'))return;
+      S=d;save();location.reload();
+    }catch(e){toast('Not a valid backup file');}
+  };
+  r.readAsText(f);inp.value='';
+}
+function wipe(){
+  if(!confirm('Delete ALL data? This cannot be undone.'))return;
+  if(!confirm('Really sure? Export a backup first!'))return;
+  localStorage.removeItem(KEY);location.reload();
+}
+
+/* ================= TEAM SYNC ================= */
+async function api(action,payload){
+  const s=S.settings;
+  if(!s.backend){toast('Set backend URL in Settings → Team Sync');throw new Error('no backend');}
+  const r=await fetch(s.backend,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(Object.assign({action,key:s.teamKey},payload||{}))});
+  const j=await r.json();
+  if(!j.ok)throw new Error(j.error||'server error');
+  return j;
+}
+async function syncNow(silent){
+  try{
+    if(!silent)toast('Syncing…');
+    const j=await api('push',{rep:S.settings.rep,biz:S.biz});
+    S.biz=j.biz.map(b=>{b.intro=(b.intro==1||b.intro===true);return b;});
+    save();renderDash();
+    if(document.getElementById('tab-leads').classList.contains('active'))renderLeads();
+    if(!silent)toast('Synced ✓ '+S.biz.length+' leads shared');
+  }catch(e){if(!silent)toast('Sync failed: '+e.message);}
+}
+
+/* ================= PROSPECTS ================= */
+async function hunt(){
+  const q=$('huntQ').value.trim();
+  if(!q)return toast('Type an area, e.g. "barbers in Frisco TX"');
+  toast('Searching & scoring…');
+  try{
+    const j=await api('hunt',{q});
+    let added=0;
+    j.prospects.forEach(p=>{
+      if(S.biz.some(b=>b.placeId===p.placeId))return;
+      const ex=S.prospects.find(x=>x.placeId===p.placeId);
+      if(ex)Object.assign(ex,p,{sel:ex.sel});else{S.prospects.push(p);added++;}
+    });
+    save();renderPros();
+    toast(j.prospects.length+' analyzed, '+added+' new prospects');
+  }catch(e){toast('Hunt failed: '+e.message);}
+}
+function scoreBadge(sc){
+  const cls=sc>=70?'trial-r':sc>=50?'trial-a':'trial-x';
+  const lbl=sc>=70?'🔥 HOT':sc>=50?'WARM':'cool';
+  return `<span class="badge ${cls}">${sc} ${lbl}</span>`;
+}
+function renderPros(){
+  const list=S.prospects.filter(p=>!p.promoted&&!S.biz.some(b=>b.placeId===p.placeId))
+    .sort((a,b)=>b.score-a.score).slice(0,150);
+  $('prosList').innerHTML=list.length?list.map(p=>`
+    <div class="biz" style="cursor:default">
+      <div class="nm"><input type="checkbox" style="width:18px;height:18px;margin:0 6px 0 0;vertical-align:-3px" ${p.sel?'checked':''} onchange="toggleSel('${p.placeId}',this.checked)">${esc(p.name)} ${scoreBadge(p.score)}</div>
+      <div class="meta">${esc(p.reasons)}</div>
+      <div class="meta">📍 ${esc(p.address)}${p.phone?' · 📞 '+esc(p.phone):''}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" onclick="promote('${p.placeId}')">＋ Add to leads</button>
+        <button class="btn sm sec" onclick="prosMap('${p.placeId}')">🗺 Map</button>
+      </div>
+    </div>`).join(''):'<div class="card"><p class="small">No prospects yet. Search an area above — results are scored and ranked by who needs you most. Set up the backend first (Settings → Team Sync).</p></div>';
+}
+function prosMap(pid){
+  const p=S.prospects.find(x=>x.placeId===pid);
+  if(p)window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name+' '+p.address),'_blank');
+}
+function toggleSel(pid,v){const p=S.prospects.find(x=>x.placeId===pid);if(p){p.sel=v;save();}}
+function promote(pid){
+  const p=S.prospects.find(x=>x.placeId===pid);if(!p)return;
+  S.biz.push({
+    id:'b'+Date.now(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+    name:p.name,type:p.type||'',address:p.address||'',phone:p.phone||'',contact:'',
+    status:'Not Visited',placeId:p.placeId,
+    reviewUrl:'https://search.google.com/local/writereview?placeid='+p.placeId,
+    hasWebsite:p.website?'yes':'no',nfc:'',trialStart:'',followUp:'',
+    reviewsStart:String(p.reviews||''),reviewsNow:'',plan:'',intro:true,ghl:'',
+    notes:'Prospect score '+p.score+' — '+p.reasons,lat:p.lat,lng:p.lng
+  });
+  p.promoted=true;save();renderPros();renderDash();
+  toast(p.name+' added to leads ✓ (review link ready)');
+}
+
+/* ================= ROUTE OPTIMIZER ================= */
+function hav(a,b){
+  const r=Math.PI/180,dl=(b.lat-a.lat)*r,dg=(b.lng-a.lng)*r;
+  const x=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dg/2)**2;
+  return 12742*Math.asin(Math.sqrt(x));
+}
+function optRoute(stops,start){
+  let rem=stops.slice(),route=[],cur=start;
+  if(!cur){route.push(rem.shift());cur=route[0];}
+  while(rem.length){
+    let bi=0,bd=Infinity;
+    rem.forEach((s,i)=>{const d=hav(cur,s);if(d<bd){bd=d;bi=i;}});
+    cur=rem.splice(bi,1)[0];route.push(cur);
+  }
+  const D=(a,b)=>a&&b?hav(a,b):0;
+  for(let pass=0;pass<4;pass++){
+    let improved=false;
+    for(let i=0;i<route.length-1;i++)for(let j=i+1;j<route.length;j++){
+      const prev=i===0?start:route[i-1],next=route[j+1];
+      const cur0=D(prev,route[i])+D(route[j],next);
+      const new0=D(prev,route[j])+D(route[i],next);
+      if(new0<cur0-1e-9){
+        const seg=route.slice(i,j+1).reverse();
+        route.splice(i,seg.length,...seg);improved=true;
+      }
+    }
+    if(!improved)break;
+  }
+  return route;
+}
+function getLoc(){
+  return new Promise(res=>{
+    if(!navigator.geolocation)return res(null);
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),
+      ()=>res(null),{timeout:4000,maximumAge:120000});
+  });
+}
+async function doRoute(stops){
+  stops=stops.filter(s=>s.lat&&s.lng);
+  if(!stops.length)return toast('No mappable stops selected');
+  if(stops.length>10){toast('Routing your best 10 (Maps limit)');stops=stops.slice(0,10);}
+  toast('Optimizing route…');
+  const me=await getLoc();
+  const route=optRoute(stops,me);
+  const pts=route.map(s=>s.lat+','+s.lng);
+  const dest=pts.pop();
+  let url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+dest;
+  if(me)url+='&origin='+me.lat+','+me.lng;
+  if(pts.length)url+='&waypoints='+encodeURIComponent(pts.join('|'));
+  window.open(url,'_blank');
+}
+function routeSelected(){doRoute(S.prospects.filter(p=>p.sel&&!p.promoted));}
+function routeTop(){
+  doRoute(S.prospects.filter(p=>!p.promoted&&!S.biz.some(b=>b.placeId===p.placeId))
+    .sort((a,b)=>b.score-a.score).slice(0,10));
+}
+
+/* ================= INIT ================= */
+$('hdrBrand').textContent=S.settings.brand;
+renderDash();
+if(S.settings.backend)syncNow(true);
+</script>
+</body>
+</html>
