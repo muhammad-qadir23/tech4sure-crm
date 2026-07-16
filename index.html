@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v2.0 prospects+sync -->
+<!-- v3.0 stripe links + status wizard + timed follow-ups -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
@@ -83,6 +83,7 @@ label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
 .knock button{width:52px;height:52px;border-radius:50%;font-size:1.5rem;background:var(--card2);color:var(--txt);border:1px solid var(--line);cursor:pointer}
 hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.wbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -114,11 +115,18 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div class="stat"><div class="v amb" id="stEnding">0</div><div class="l">Trials ending ≤5d</div></div>
     <div class="stat"><div class="v vio" id="stConv">0%</div><div class="l">Visit → paid conversion</div></div>
     <div class="stat"><div class="v grn" id="stMRR">$0</div><div class="l">MRR</div></div>
+    <div class="stat"><div class="v amb" id="stCards">0</div><div class="l">Cards sold</div></div>
+    <div class="stat"><div class="v grn" id="stCardRev">$0</div><div class="l">Card revenue</div></div>
   </div>
 
   <div class="card" style="margin-top:12px">
-    <h2>📅 Follow-ups due</h2>
+    <h2>🔔 Follow-ups due now</h2>
     <div id="dueList"><p class="small">Nothing due. Go knock doors.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>🔜 Upcoming follow-ups</h2>
+    <div id="upcomingList"><p class="small">Nothing scheduled.</p></div>
   </div>
 
   <div class="card">
@@ -167,13 +175,16 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <h2 style="margin-top:16px">✅ Pre-Visit Checklist <span class="small">(resets daily)</span></h2>
   <div class="card" id="checklist"></div>
 
-  <h2 style="margin-top:16px">⚡ Quick Actions</h2>
+  <h2 style="margin-top:16px">⚡ Payment Links — tap to copy</h2>
   <div class="card">
     <div class="row" style="margin-bottom:8px">
-      <button class="btn" onclick="copyStripe('seo')">💳 Copy SEO plan link</button>
+      <button class="btn" onclick="copyStripe('seo')">💳 SEO plan</button>
+      <button class="btn sec" onclick="copyStripe('trial')">💳 SEO Free Trial</button>
     </div>
     <div class="row">
-      <button class="btn sec" onclick="copyStripe('web')">💳 Copy SEO+Website link</button>
+      <button class="btn sec" onclick="copyStripe('c30')">Card $30</button>
+      <button class="btn sec" onclick="copyStripe('c40')">Card $40</button>
+      <button class="btn sec" onclick="copyStripe('c50')">Card $50</button>
     </div>
     <p class="small" style="margin-top:10px">Set your Stripe payment links in Settings.</p>
   </div>
@@ -198,7 +209,10 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div class="card">
     <h2>💳 Stripe Payment Links</h2>
     <label>SEO plan link</label><input id="sStripeSeo" placeholder="https://buy.stripe.com/…">
-    <label>SEO + Website plan link</label><input id="sStripeWeb" placeholder="https://buy.stripe.com/…">
+    <label>SEO Plan - Free Trial</label><input id="sStripeTrial" placeholder="https://buy.stripe.com/…">
+    <label>Google Review Cards - $30</label><input id="sStripeC30" placeholder="https://buy.stripe.com/…">
+    <label>Google Review Cards - $40</label><input id="sStripeC40" placeholder="https://buy.stripe.com/…">
+    <label>Google Review Cards - $50</label><input id="sStripeC50" placeholder="https://buy.stripe.com/…">
   </div>
   <div class="card">
     <h2>💰 Pricing ($/mo)</h2>
@@ -265,7 +279,9 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div><label>NFC card ID</label><input id="fNfc" placeholder="e.g. T4S-001"></div>
     <div><label>Has website?</label><select id="fWeb"><option value="">Unknown</option><option value="yes">Yes</option><option value="no">No → upsell!</option></select></div>
     <div><label>Trial start date</label><input id="fTrial" type="date"></div>
-    <div><label>Next follow-up</label><input id="fFollow" type="date"></div>
+    <div><label>Card sold ($)</label><input id="fCard" type="number" inputmode="numeric" placeholder="30 / 40 / 50"></div>
+    <div><label>Next follow-up date</label><input id="fFollow" type="date"></div>
+    <div><label>Follow-up time</label><input id="fFollowT" type="time"></div>
     <div><label>Reviews at signup</label><input id="fRev0" type="number" inputmode="numeric"></div>
     <div><label>Reviews now</label><input id="fRev1" type="number" inputmode="numeric"></div>
   </div>
@@ -275,6 +291,46 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <label>GoHighLevel pipeline / automation notes</label><input id="fGhl" placeholder="e.g. Trial Nurture pipeline, SMS seq #2">
   <label>Notes / decline reason</label><textarea id="fNotes"></textarea>
   <button class="btn" onclick="saveBiz()">Save</button>
+  <div style="height:30px"></div>
+</div></div>
+
+<!-- ============ STATUS WIZARD MODAL ============ -->
+<div class="modal" id="mStatus"><div class="sheet">
+  <div class="sheet-head"><h2 class="mb0" id="wTitle">Update status</h2><button class="x" onclick="cancelWizard()">✕</button></div>
+  <input type="hidden" id="wId"><input type="hidden" id="wStatus">
+  <div class="wbox" id="wPlanBox" style="display:none">
+    <h3 style="margin-bottom:8px">💰 What are they paying for?</h3>
+    <label>Plan</label>
+    <select id="wPlan" onchange="wizPrice()"><option value="seo">SEO plan</option><option value="seo+web">SEO + Website</option></select>
+    <div class="check" style="border:none"><input type="checkbox" id="wIntro" checked onchange="wizPrice()"><span>Intro discount pricing</span></div>
+    <label>Monthly amount ($) — auto-filled, edit if different</label>
+    <input id="wPrice" type="number" inputmode="decimal">
+  </div>
+  <div class="wbox" id="wCardBox" style="display:none">
+    <h3 style="margin-bottom:8px">🪪 Sold a review card?</h3>
+    <select id="wCard"><option value="">No card sale</option><option value="30">Google Review Card — $30</option><option value="40">Google Review Card — $40</option><option value="50">Google Review Card — $50</option></select>
+  </div>
+  <div class="wbox" id="wTrialBox" style="display:none">
+    <h3 style="margin-bottom:8px">⏳ Trial</h3>
+    <label>Trial start date</label><input id="wTrialDate" type="date">
+  </div>
+  <div class="wbox" id="wDeclineBox" style="display:none">
+    <h3 style="margin-bottom:8px">❌ Why did they decline?</h3>
+    <select id="wWhy"><option>Price</option><option>Not interested</option><option>Already has an agency</option><option>Needs partner approval</option><option>Come back later</option><option>Other</option></select>
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">📅 Follow up?</h3>
+    <div class="two">
+      <div><label>Date</label><input id="wFDate" type="date"></div>
+      <div><label>Time</label><input id="wFTime" type="time"></div>
+    </div>
+    <p class="small">Leave blank for no follow-up reminder.</p>
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">📝 Note about this visit</h3>
+    <textarea id="wNote" placeholder="e.g. spoke to owner Maria, loved the demo, husband decides"></textarea>
+  </div>
+  <button class="btn" onclick="applyStatus()">Save update</button>
   <div style="height:30px"></div>
 </div></div>
 
@@ -307,11 +363,13 @@ const CHECKLIST=['NFC cards in pocket','Phone charged + power bank','Tested a ca
 
 let S=load();
 S.prospects=S.prospects||[];
-S.settings=Object.assign({backend:'',teamKey:'',endTime:'17:00'},S.settings);
+S.settings=Object.assign({backend:'',teamKey:'',endTime:'17:00',stripeTrial:'',stripeC30:'',stripeC40:'',stripeC50:''},S.settings);
+if(!S.settings.stripeTrial&&S.settings.stripeWeb)S.settings.stripeTrial=S.settings.stripeWeb;
 function load(){
   try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.biz)return d;}catch(e){}
   return {biz:[],knocks:{},checks:{},prospects:[],settings:{
     brand:'Tech4Sure',rep:'',goal:30,stripeSeo:'',stripeWeb:'',
+    stripeTrial:'',stripeC30:'',stripeC40:'',stripeC50:'',
     priceSeo:97,priceWeb:30,introSeo:50,introWeb:10,script:DEFAULT_SCRIPT,
     backend:'',teamKey:'',endTime:'17:00'}};
 }
@@ -322,6 +380,8 @@ const $=id=>document.getElementById(id);
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function daysFrom(dateStr){return Math.floor((new Date(today())-new Date(dateStr))/864e5);}
+function stamp(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+function fmtTime(t){if(!t)return'';const[h,m]=t.split(':');const hr=+h;return(hr%12||12)+':'+m+(hr<12?' AM':' PM');}
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._x);t._x=setTimeout(()=>t.style.display='none',1800);}
 function copy(txt,msg){navigator.clipboard.writeText(txt).then(()=>toast(msg||'Copied!')).catch(()=>{prompt('Copy this:',txt);});}
 function price(b){
@@ -362,6 +422,7 @@ function closeM(id){$(id).classList.remove('open');}
 function knock(n){
   const t=today();S.knocks[t]=Math.max(0,(S.knocks[t]||0)+n);save();renderDash();
 }
+function fuKey(b){return (b.followUp||'9999')+' '+(b.followUpTime||'99:99');}
 function renderDash(){
   const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
   $('knockCount').textContent=k;$('knockGoal').textContent=goal;
@@ -377,12 +438,17 @@ function renderDash(){
   const paying=S.biz.filter(b=>b.status==='Paying Customer');
   $('stConv').textContent=(visited.length?Math.round(paying.length/visited.length*100):0)+'%';
   $('stMRR').textContent='$'+paying.reduce((a,b)=>a+price(b),0);
+  const cardSales=S.biz.filter(b=>+b.cardPrice>0);
+  $('stCards').textContent=cardSales.length;
+  $('stCardRev').textContent='$'+cardSales.reduce((a,b)=>a+ +b.cardPrice,0);
   const goalLeft=goal-k,now=new Date(),end=new Date(t+'T'+(S.settings.endTime||'17:00'));
   const minsLeft=Math.round((end-now)/6e4);
   $('paceLine').textContent=goalLeft<=0?'🎉 Goal hit — keep going!':(minsLeft>0?goalLeft+' doors left — one every '+Math.max(1,Math.floor(minsLeft/goalLeft))+' min to finish by '+(S.settings.endTime||'17:00'):goalLeft+' doors short of goal today');
-  const due=S.biz.filter(b=>b.followUp&&b.followUp<=t&&!['Paying Customer','Declined'].includes(b.status))
-    .sort((a,b)=>a.followUp<b.followUp?-1:1);
+  const open=b=>b.status!=='Declined';
+  const due=S.biz.filter(b=>b.followUp&&b.followUp<=t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
+  const upcoming=S.biz.filter(b=>b.followUp&&b.followUp>t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1).slice(0,10);
   $('dueList').innerHTML=due.length?due.map(b=>bizCard(b,b.followUp<t?'overdue':'due')).join(''):'<p class="small">Nothing due. Go knock doors.</p>';
+  $('upcomingList').innerHTML=upcoming.length?upcoming.map(b=>bizCard(b)).join(''):'<p class="small">Nothing scheduled.</p>';
   $('endingList').innerHTML=ending.length?ending.map(b=>bizCard(b)).join(''):'<p class="small">No trials close to day 30.</p>';
   $('hdrCount').textContent=S.biz.length+' businesses';
 }
@@ -397,12 +463,14 @@ function renderChips(){
 }
 function bizCard(b,extra){
   const ti=trialInfo(b);
+  const fu=b.followUp?(b.followUp+(b.followUpTime?' '+fmtTime(b.followUpTime):'')):'';
   return `<div class="biz ${extra||''}" onclick="openDetail('${b.id}')">
     <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
-    ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}</div>
+    ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}
+    ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}</div>
     <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}
-    ${b.followUp?' · 📅 '+esc(b.followUp):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
+    ${fu?' · 📅 '+esc(fu):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
   </div>`;
 }
 function renderLeads(){
@@ -412,7 +480,7 @@ function renderLeads(){
   if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
   if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
   if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
-  if(sortBy==='follow')list.sort((a,b)=>(a.followUp||'9999')<(b.followUp||'9999')?-1:1);
+  if(sortBy==='follow')list.sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
   if(sortBy==='street')list.sort((a,b)=>streetOf(a.address).localeCompare(streetOf(b.address)));
   let html='';
   if(sortBy==='street'){
@@ -434,7 +502,8 @@ function openForm(id){
   set('fName',b&&b.name);set('fType',b&&b.type);set('fAddr',b&&b.address);
   set('fPhone',b&&b.phone);set('fContact',b&&b.contact);set('fStatus',b?b.status:'Not Visited');
   set('fReview',b&&b.reviewUrl);set('fPlace',b&&b.placeId);set('fNfc',b&&b.nfc);
-  set('fWeb',b?b.hasWebsite:'');set('fTrial',b&&b.trialStart);set('fFollow',b&&b.followUp);
+  set('fWeb',b?b.hasWebsite:'');set('fTrial',b&&b.trialStart);set('fCard',b&&b.cardPrice);
+  set('fFollow',b&&b.followUp);set('fFollowT',b&&b.followUpTime);
   set('fRev0',b&&b.reviewsStart);set('fRev1',b&&b.reviewsNow);set('fPlan',b?b.plan:'');
   $('fIntro').checked=b?!!b.intro:true;
   set('fGhl',b&&b.ghl);set('fNotes',b&&b.notes);
@@ -456,7 +525,8 @@ function saveBiz(){
     name,type:$('fType').value,address:$('fAddr').value.trim(),phone:$('fPhone').value.trim(),
     contact:$('fContact').value.trim(),status:$('fStatus').value,reviewUrl:$('fReview').value.trim(),
     placeId:$('fPlace').value.trim(),nfc:$('fNfc').value.trim(),hasWebsite:$('fWeb').value,
-    trialStart:$('fTrial').value,followUp:$('fFollow').value,
+    trialStart:$('fTrial').value,cardPrice:$('fCard').value,
+    followUp:$('fFollow').value,followUpTime:$('fFollowT').value,
     reviewsStart:$('fRev0').value,reviewsNow:$('fRev1').value,
     plan:$('fPlan').value,intro:$('fIntro').checked,ghl:$('fGhl').value.trim(),notes:$('fNotes').value.trim(),
     updatedAt:new Date().toISOString()
@@ -466,17 +536,79 @@ function saveBiz(){
   save();closeM('mForm');renderLeads();renderDash();toast('Saved ✓');
 }
 
+/* ================= STATUS WIZARD ================= */
+function statusWizard(id,st){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  $('wId').value=id;$('wStatus').value=st;
+  $('wTitle').textContent=b.name+' → '+st;
+  const show=(el,v)=>$(el).style.display=v?'block':'none';
+  show('wPlanBox',st==='Paying Customer');
+  show('wCardBox',!['Not Visited','Declined'].includes(st));
+  show('wTrialBox',st==='Trial Started');
+  show('wDeclineBox',st==='Declined');
+  $('wPlan').value=b.plan||'seo';$('wIntro').checked=b.intro!==false;wizPrice();
+  if(b.customPrice)$('wPrice').value=b.customPrice;
+  $('wCard').value=b.cardPrice||'';
+  $('wTrialDate').value=b.trialStart||today();
+  let defDate='';
+  if(st==='Follow-Up'){const d=new Date();d.setDate(d.getDate()+2);defDate=d.toISOString().slice(0,10);}
+  if(st==='Trial Started'){const d=new Date();d.setDate(d.getDate()+7);defDate=d.toISOString().slice(0,10);}
+  $('wFDate').value=b.followUp||defDate;$('wFTime').value=b.followUpTime||'';
+  $('wNote').value='';
+  $('mStatus').classList.add('open');window.scrollTo(0,0);
+}
+function wizPrice(){
+  const s=S.settings,intro=$('wIntro').checked;
+  let p=intro?+s.introSeo:+s.priceSeo;
+  if($('wPlan').value==='seo+web')p+=intro?+s.introWeb:+s.priceWeb;
+  $('wPrice').value=p;
+}
+function cancelWizard(){
+  closeM('mStatus');
+  const id=$('wId').value;
+  if($('mDetail').classList.contains('open'))openDetail(id);
+}
+function applyStatus(){
+  const id=$('wId').value,st=$('wStatus').value;
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  b.status=st;b.updatedAt=new Date().toISOString();
+  if(st!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
+  if(st==='Paying Customer'){
+    b.plan=$('wPlan').value;b.intro=$('wIntro').checked;
+    const s=S.settings,intro=b.intro;
+    let auto=intro?+s.introSeo:+s.priceSeo;
+    if(b.plan==='seo+web')auto+=intro?+s.introWeb:+s.priceWeb;
+    const entered=+$('wPrice').value||0;
+    b.customPrice=(entered&&entered!==auto)?entered:'';
+  }
+  if($('wCardBox').style.display!=='none'&&$('wCard').value)b.cardPrice=$('wCard').value;
+  if(st==='Trial Started')b.trialStart=$('wTrialDate').value||today();
+  b.followUp=$('wFDate').value;b.followUpTime=$('wFTime').value;
+  const note=$('wNote').value.trim();
+  let entry='';
+  if(st==='Declined')entry='Declined: '+$('wWhy').value+(note?' — '+note:'');
+  else if(note)entry=note;
+  if($('wCard').value&&$('wCardBox').style.display!=='none')entry=(entry?entry+' · ':'')+'sold card $'+$('wCard').value;
+  if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
+  save();closeM('mStatus');
+  if($('mDetail').classList.contains('open'))openDetail(id);
+  renderLeads();renderDash();
+  toast(st==='Paying Customer'?'💰 Customer! $'+price(b)+'/mo added to MRR':'Status → '+st);
+}
+
 /* ================= DETAIL ================= */
 function openDetail(id){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
   const ti=trialInfo(b);
   const growth=(b.reviewsStart!==''&&b.reviewsNow!==''&&b.reviewsStart!=null&&b.reviewsNow!=null&&b.reviewsStart!==undefined)?(+b.reviewsNow-+b.reviewsStart):null;
+  const fu=b.followUp?(b.followUp+(b.followUpTime?' at '+fmtTime(b.followUpTime):'')):'';
   $('detailBody').innerHTML=`
   <div class="sheet-head"><h2 class="mb0">${esc(b.name)}</h2><button class="x" onclick="closeM('mDetail')">✕</button></div>
   <div style="margin-bottom:12px">
     <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
-    ${b.plan?`<span class="badge s-p">$${price(b)}/mo${b.intro?' (intro)':''}</span>`:''}
+    ${b.plan&&b.status==='Paying Customer'?`<span class="badge s-p">$${price(b)}/mo${b.intro?' (intro)':''}</span>`:''}
+    ${+b.cardPrice>0?`<span class="badge s-p">🪪 card $${esc(b.cardPrice)}</span>`:''}
   </div>
   <div class="card small" style="line-height:1.9">
     ${b.type?'🏷 '+esc(b.type)+'<br>':''}
@@ -484,14 +616,14 @@ function openDetail(id){
     ${b.phone?'📞 <a class="link" href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a><br>':''}
     ${b.contact?'👤 '+esc(b.contact)+'<br>':''}
     ${b.nfc?'🪪 NFC card: '+esc(b.nfc)+'<br>':''}
-    ${b.followUp?'📅 Follow-up: '+esc(b.followUp)+'<br>':''}
+    ${fu?'📅 Follow-up: '+esc(fu)+'<br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
     ${growth!=null&&!isNaN(growth)?'⭐ Reviews: '+esc(b.reviewsStart)+' → '+esc(b.reviewsNow)+' (<b style="color:var(--grn)">+'+growth+'</b>)<br>':''}
     ${b.ghl?'🔗 GHL: '+esc(b.ghl)+'<br>':''}
-    ${b.notes?'📝 '+esc(b.notes):''}
+    ${b.notes?'📝 <span style="white-space:pre-wrap">'+esc(b.notes)+'</span>':''}
   </div>
-  <label>Quick status change</label>
-  <select onchange="quickStatus('${b.id}',this.value)">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select>
+  <label>Update status (asks quick questions)</label>
+  <select onchange="statusWizard('${b.id}',this.value)">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select>
   <div class="row" style="margin-bottom:8px">
     ${b.reviewUrl?`<button class="btn" onclick="copy('${esc(b.reviewUrl)}','Review link copied!')">⭐ Copy review link</button>`:`<button class="btn sec" onclick="findMaps('${b.id}')">🔎 Find on Maps</button>`}
   </div>
@@ -501,7 +633,12 @@ function openDetail(id){
   </div>
   <div class="row" style="margin-bottom:8px">
     <button class="btn sec" onclick="copyStripe('seo')">💳 SEO link</button>
-    <button class="btn sec" onclick="copyStripe('web')">💳 SEO+Web link</button>
+    <button class="btn sec" onclick="copyStripe('trial')">💳 Trial link</button>
+  </div>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" onclick="copyStripe('c30')">Card $30</button>
+    <button class="btn sec" onclick="copyStripe('c40')">Card $40</button>
+    <button class="btn sec" onclick="copyStripe('c50')">Card $50</button>
   </div>
   <div class="row" style="margin-bottom:8px">
     <button class="btn sec" onclick="proposal('${b.id}',false)">📄 Copy proposal</button>
@@ -513,13 +650,6 @@ function openDetail(id){
   </div>
   <div style="height:30px"></div>`;
   $('mDetail').classList.add('open');window.scrollTo(0,0);
-}
-function quickStatus(id,st){
-  const b=S.biz.find(x=>x.id===id);if(!b)return;
-  b.status=st;b.updatedAt=new Date().toISOString();
-  if(st!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
-  if(st==='Trial Started'&&!b.trialStart)b.trialStart=today();
-  save();openDetail(id);renderLeads();renderDash();toast('Status → '+st);
 }
 function openMaps(id){
   const b=S.biz.find(x=>x.id===id);
@@ -554,16 +684,18 @@ Here's what we talked about:
 
 More reviews = higher on Google = more customers walking in.
 
-Start your free trial here: ${b.plan==='seo+web'?(s.stripeWeb||'[payment link]'):(s.stripeSeo||'[payment link]')}
+Start your free trial here: ${s.stripeTrial||s.stripeSeo||'[payment link]'}
 
 Questions? Just reply here. — ${s.rep||s.brand}`;
   if(sms&&b.phone){window.open('sms:'+b.phone+'?&body='+encodeURIComponent(txt));}
   else copy(txt,'Proposal copied!');
 }
 function copyStripe(which){
-  const l=which==='web'?S.settings.stripeWeb:S.settings.stripeSeo;
-  if(!l)return toast('Set your Stripe link in Settings first');
-  copy(l,'Payment link copied!');
+  const s=S.settings;
+  const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
+  const[l,label]=map[which]||['',''];
+  if(!l)return toast('Set the "'+label+'" link in Settings first');
+  copy(l,label+' link copied!');
 }
 
 /* ================= PITCH ================= */
@@ -587,7 +719,8 @@ function tickCheck(i,v){const t=today();if(!S.checks[t])S.checks={[t]:{}};S.chec
 function renderSettings(){
   const s=S.settings;
   $('sBrand').value=s.brand;$('sRep').value=s.rep;$('sGoal').value=s.goal;
-  $('sStripeSeo').value=s.stripeSeo;$('sStripeWeb').value=s.stripeWeb;
+  $('sStripeSeo').value=s.stripeSeo;$('sStripeTrial').value=s.stripeTrial||'';
+  $('sStripeC30').value=s.stripeC30||'';$('sStripeC40').value=s.stripeC40||'';$('sStripeC50').value=s.stripeC50||'';
   $('sPriceSeo').value=s.priceSeo;$('sPriceWeb').value=s.priceWeb;
   $('sIntroSeo').value=s.introSeo;$('sIntroWeb').value=s.introWeb;
   $('sScript').value=s.script||DEFAULT_SCRIPT;
@@ -597,7 +730,8 @@ function saveSettings(){
   const s=S.settings;
   s.brand=$('sBrand').value.trim()||'Tech4Sure';s.rep=$('sRep').value.trim();
   s.goal=+$('sGoal').value||30;
-  s.stripeSeo=$('sStripeSeo').value.trim();s.stripeWeb=$('sStripeWeb').value.trim();
+  s.stripeSeo=$('sStripeSeo').value.trim();s.stripeTrial=$('sStripeTrial').value.trim();
+  s.stripeC30=$('sStripeC30').value.trim();s.stripeC40=$('sStripeC40').value.trim();s.stripeC50=$('sStripeC50').value.trim();
   s.priceSeo=+$('sPriceSeo').value||97;s.priceWeb=+$('sPriceWeb').value||30;
   s.introSeo=+$('sIntroSeo').value||50;s.introWeb=+$('sIntroWeb').value||10;
   s.script=$('sScript').value;
@@ -607,7 +741,7 @@ function saveSettings(){
 }
 
 /* ================= EXPORT / IMPORT ================= */
-const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
+const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','followUpTime','cardPrice','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function download(name,content,type){
   const a=document.createElement('a');
@@ -744,7 +878,7 @@ function promote(pid){
     name:p.name,type:p.type||'',address:p.address||'',phone:p.phone||'',contact:'',
     status:'Not Visited',placeId:p.placeId,
     reviewUrl:'https://search.google.com/local/writereview?placeid='+p.placeId,
-    hasWebsite:p.website?'yes':'no',nfc:'',trialStart:'',followUp:'',
+    hasWebsite:p.website?'yes':'no',nfc:'',trialStart:'',followUp:'',followUpTime:'',cardPrice:'',
     reviewsStart:String(p.reviews||''),reviewsNow:'',plan:'',intro:true,ghl:'',
     notes:'Prospect score '+p.score+' — '+p.reasons,lat:p.lat,lng:p.lng
   });
@@ -817,3 +951,4 @@ if(S.settings.backend)syncNow(true);
 </script>
 </body>
 </html>
+                             
