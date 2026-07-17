@@ -9,8 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v3.0 stripe links + status wizard + timed follow-ups -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- v4.0 stage-1: freeze fix (no native popups), tombstone deletes, auto-sync, notes visibility, open+copy links -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -72,18 +71,21 @@ label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
 .check.done span{color:var(--mut);text-decoration:line-through}
 .fab{position:fixed;bottom:84px;right:18px;width:56px;height:56px;border-radius:50%;background:var(--acc);color:#082f49;border:none;font-size:1.9rem;font-weight:700;z-index:55;box-shadow:0 4px 14px #0008;cursor:pointer;display:none}
 .fab.show{display:block}
-.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--grn);color:#052e16;padding:10px 20px;border-radius:999px;font-weight:600;font-size:.85rem;z-index:200;display:none;white-space:nowrap}
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--grn);color:#052e16;padding:10px 20px;border-radius:999px;font-weight:600;font-size:.85rem;z-index:400;display:none;white-space:nowrap}
 .small{font-size:.78rem;color:var(--mut)} .mb0{margin-bottom:0}
 .due{border-left:3px solid var(--amb)}
 .overdue{border-left:3px solid var(--red)}
 .link{color:var(--acc);text-decoration:none;font-size:.85rem}
-.qrbox{background:#fff;padding:14px;border-radius:12px;display:flex;justify-content:center;margin:10px 0}
 .knock{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .knock .big{font-size:2rem;font-weight:800;color:var(--grn)}
 .knock button{width:52px;height:52px;border-radius:50%;font-size:1.5rem;background:var(--card2);color:var(--txt);border:1px solid var(--line);cursor:pointer}
 hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .wbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.dialog{max-width:420px;margin:25vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.payrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.payrow span{flex:1;font-size:.88rem}
+.notebox{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:.82rem;line-height:1.7;white-space:pre-wrap;margin-bottom:10px;max-height:180px;overflow-y:auto}
 </style>
 </head>
 <body>
@@ -157,10 +159,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <button class="btn" onclick="hunt()">🔍 Search & analyze area</button>
     <p class="small" style="margin-top:8px">Scores who needs you most: few reviews, no website, weak rating, high-traffic type. Needs Team Sync backend (Settings).</p>
   </div>
-  <div class="row" style="margin-bottom:10px">
+  <div class="row" style="margin-bottom:8px">
     <button class="btn sec" onclick="routeSelected()">🗺 Route selected</button>
     <button class="btn" onclick="routeTop()">⚡ Route my top 10</button>
   </div>
+  <p class="small" style="margin-bottom:10px">📍 Routing: allow location access when asked — stops are ordered nearest-first from where you're standing, then open in Google Maps ready to drive.</p>
   <div id="prosList"></div>
 </div>
 
@@ -175,18 +178,10 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <h2 style="margin-top:16px">✅ Pre-Visit Checklist <span class="small">(resets daily)</span></h2>
   <div class="card" id="checklist"></div>
 
-  <h2 style="margin-top:16px">⚡ Payment Links — tap to copy</h2>
+  <h2 style="margin-top:16px">💳 Payment Links</h2>
   <div class="card">
-    <div class="row" style="margin-bottom:8px">
-      <button class="btn" onclick="copyStripe('seo')">💳 SEO plan</button>
-      <button class="btn sec" onclick="copyStripe('trial')">💳 SEO Free Trial</button>
-    </div>
-    <div class="row">
-      <button class="btn sec" onclick="copyStripe('c30')">Card $30</button>
-      <button class="btn sec" onclick="copyStripe('c40')">Card $40</button>
-      <button class="btn sec" onclick="copyStripe('c50')">Card $50</button>
-    </div>
-    <p class="small" style="margin-top:10px">Set your Stripe payment links in Settings.</p>
+    <div id="payLinksPitch"></div>
+    <p class="small">Open shows the checkout to the customer right on your screen; Copy puts the link in your clipboard to text them. Set links in Settings.</p>
   </div>
 </div>
 
@@ -204,7 +199,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <label>Backend URL (Apps Script /exec)</label><input id="sBackend" placeholder="https://script.google.com/macros/s/…/exec">
     <label>Team key</label><input id="sKey" placeholder="same key set in Script Properties">
     <button class="btn sec" onclick="syncNow(false)">🔄 Sync now</button>
-    <p class="small" style="margin-top:8px">Auto-syncs on app open. Setup steps in SETUP-PROSPECTING-AND-SYNC.md.</p>
+    <p class="small" style="margin-top:8px" id="syncInfo">Auto-backs up to the team database a few seconds after every change.</p>
   </div>
   <div class="card">
     <h2>💳 Stripe Payment Links</h2>
@@ -241,7 +236,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     </div>
     <input type="file" id="impCsv" accept=".csv" style="display:none" onchange="importCSV(this)">
     <input type="file" id="impJson" accept=".json" style="display:none" onchange="importJSON(this)">
-    <p class="small" style="margin-top:10px">With Team Sync on, the Google Sheet is the master backup. CSV/JSON export still works as a local safety net.</p>
+    <p class="small" style="margin-top:10px">With Team Sync on, the Google Sheet is the master backup — every change is saved there automatically. CSV/JSON export is an extra local safety net.</p>
   </div>
   <button class="btn danger" onclick="wipe()">Delete ALL data</button>
 </div>
@@ -257,6 +252,16 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 
 <button class="fab" id="fab" onclick="openForm()">＋</button>
 <div class="toast" id="toast"></div>
+
+<!-- ============ ASK DIALOG (replaces native popups — those freeze iPad home-screen apps) ============ -->
+<div class="modal" id="mAsk" style="z-index:300"><div class="dialog">
+  <p id="askMsg" style="margin-bottom:12px;font-size:.95rem;white-space:pre-wrap"></p>
+  <textarea id="askInput" style="display:none"></textarea>
+  <div class="row">
+    <button class="btn sec" id="askNo">Cancel</button>
+    <button class="btn" id="askYes">OK</button>
+  </div>
+</div></div>
 
 <!-- ============ ADD/EDIT MODAL ============ -->
 <div class="modal" id="mForm"><div class="sheet">
@@ -289,7 +294,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <select id="fPlan"><option value="">None yet</option><option value="seo">SEO only</option><option value="seo+web">SEO + Website</option></select>
   <div class="check" style="border:none;margin-bottom:6px"><input type="checkbox" id="fIntro"><span>Intro discount pricing</span></div>
   <label>GoHighLevel pipeline / automation notes</label><input id="fGhl" placeholder="e.g. Trial Nurture pipeline, SMS seq #2">
-  <label>Notes / decline reason</label><textarea id="fNotes"></textarea>
+  <label>Notes</label><textarea id="fNotes"></textarea>
   <button class="btn" onclick="saveBiz()">Save</button>
   <div style="height:30px"></div>
 </div></div>
@@ -313,6 +318,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div class="wbox" id="wTrialBox" style="display:none">
     <h3 style="margin-bottom:8px">⏳ Trial</h3>
     <label>Trial start date</label><input id="wTrialDate" type="date">
+    <p class="small">Free card out the door = follow-up auto-set 5 days out (collect or retrieve the card).</p>
   </div>
   <div class="wbox" id="wDeclineBox" style="display:none">
     <h3 style="margin-bottom:8px">❌ Why did they decline?</h3>
@@ -337,14 +343,6 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 <!-- ============ DETAIL MODAL ============ -->
 <div class="modal" id="mDetail"><div class="sheet" id="detailBody"></div></div>
 
-<!-- ============ QR MODAL ============ -->
-<div class="modal" id="mQr"><div class="sheet">
-  <div class="sheet-head"><h2 class="mb0">QR code — review link</h2><button class="x" onclick="closeM('mQr')">✕</button></div>
-  <div class="qrbox"><div id="qrTarget"></div></div>
-  <p class="small" id="qrUrl" style="word-break:break-all"></p>
-  <p class="small">Screenshot this and print it as a table tent / sticker backup for businesses whose customers won't tap NFC.</p>
-</div></div>
-
 <script>
 /* ================= STATE ================= */
 const KEY='tech4sure_crm_v1';
@@ -360,6 +358,7 @@ const OBJECTIONS=[
  ["“I don't have a website.”","Even better — that's exactly who we help most. Your Google profile IS your website for local customers. And if you want a real site, we build one for just {priceWeb}/mo extra on the plan. Most shops around here pay 10x that."]
 ];
 const CHECKLIST=['NFC cards in pocket','Phone charged + power bank','Tested a card tap this morning','Stripe payment links working','Business cards / flyers','Water + good shoes 😄'];
+const PAY_ITEMS=[['seo','SEO plan'],['trial','SEO Free Trial'],['c30','Card $30'],['c40','Card $40'],['c50','Card $50']];
 
 let S=load();
 S.prospects=S.prospects||[];
@@ -373,7 +372,12 @@ function load(){
     priceSeo:97,priceWeb:30,introSeo:50,introWeb:10,script:DEFAULT_SCRIPT,
     backend:'',teamKey:'',endTime:'17:00'}};
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(S));}
+let syncTimer=null,inSync=false;
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(S));
+  if(S.settings.backend&&!inSync){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(true),8000);}
+}
+const alive=()=>S.biz.filter(b=>!b.deleted);
 
 /* ================= HELPERS ================= */
 const $=id=>document.getElementById(id);
@@ -383,7 +387,27 @@ function daysFrom(dateStr){return Math.floor((new Date(today())-new Date(dateStr
 function stamp(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
 function fmtTime(t){if(!t)return'';const[h,m]=t.split(':');const hr=+h;return(hr%12||12)+':'+m+(hr<12?' AM':' PM');}
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._x);t._x=setTimeout(()=>t.style.display='none',1800);}
-function copy(txt,msg){navigator.clipboard.writeText(txt).then(()=>toast(msg||'Copied!')).catch(()=>{prompt('Copy this:',txt);});}
+/* in-app dialog — native confirm()/alert()/prompt() freeze iPad home-screen web apps */
+function ask(msg,opts){
+  opts=opts||{};
+  return new Promise(res=>{
+    $('askMsg').textContent=msg;
+    const inp=$('askInput');
+    inp.style.display=opts.input?'block':'none';
+    inp.value=opts.value||'';
+    $('askYes').textContent=opts.ok||'OK';
+    $('askYes').className=opts.danger?'btn danger':'btn';
+    $('mAsk').classList.add('open');
+    if(opts.input)setTimeout(()=>inp.focus(),60);
+    $('askYes').onclick=()=>{$('mAsk').classList.remove('open');res(opts.input?inp.value:true);};
+    $('askNo').onclick=()=>{$('mAsk').classList.remove('open');res(null);};
+  });
+}
+function copy(txt,msg){
+  const fb=()=>ask('Could not auto-copy. Select and copy this manually:',{input:true,value:txt,ok:'Done'});
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(txt).then(()=>toast(msg||'Copied!')).catch(fb);
+  else fb();
+}
 function price(b){
   if(b.customPrice)return +b.customPrice;
   const s=S.settings;let p=b.intro?+s.introSeo:+s.priceSeo;
@@ -401,6 +425,32 @@ function streetOf(addr){
   if(!addr)return'zzz';
   const m=addr.match(/^\s*[\d\-\w]*\s+(.+?)(,|$)/);
   return (m?m[1]:addr).toLowerCase().trim();
+}
+function lastNote(b){
+  if(!b.notes)return'';
+  const lines=String(b.notes).trim().split('\n');
+  let l=lines[lines.length-1].trim();
+  return l.length>72?l.slice(0,72)+'…':l;
+}
+function stripeLink(which){
+  const s=S.settings;
+  const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
+  return map[which]||['',''];
+}
+function copyStripe(which){
+  const[l,label]=stripeLink(which);
+  if(!l)return toast('Set the "'+label+'" link in Settings first');
+  copy(l,label+' link copied!');
+}
+function stripeOpen(which){
+  const[l,label]=stripeLink(which);
+  if(!l)return toast('Set the "'+label+'" link in Settings first');
+  window.open(l,'_blank');
+}
+function payRows(){
+  return PAY_ITEMS.map(it=>`<div class="payrow"><span>${it[1]}</span>
+    <button class="btn sm sec" onclick="stripeOpen('${it[0]}')">🌐 Open</button>
+    <button class="btn sm sec" onclick="copyStripe('${it[0]}')">📋 Copy</button></div>`).join('');
 }
 
 /* ================= NAV ================= */
@@ -425,45 +475,50 @@ function knock(n){
 function fuKey(b){return (b.followUp||'9999')+' '+(b.followUpTime||'99:99');}
 function renderDash(){
   const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
+  const biz=alive();
   $('knockCount').textContent=k;$('knockGoal').textContent=goal;
   $('knockBar').style.width=Math.min(100,k/goal*100)+'%';
   const wk=d=>daysFrom(d)<7;
-  const visited=S.biz.filter(b=>b.visitedAt);
+  const visited=biz.filter(b=>b.visitedAt);
   $('stVisitedToday').textContent=visited.filter(b=>b.visitedAt===t).length;
   $('stVisitedWeek').textContent=visited.filter(b=>wk(b.visitedAt)).length;
-  const trials=S.biz.filter(b=>b.status==='Trial Started'&&b.trialStart&&daysFrom(b.trialStart)<=30);
+  const trials=biz.filter(b=>b.status==='Trial Started'&&b.trialStart&&daysFrom(b.trialStart)<=30);
   $('stTrials').textContent=trials.length;
   const ending=trials.filter(b=>30-daysFrom(b.trialStart)<=5);
   $('stEnding').textContent=ending.length;
-  const paying=S.biz.filter(b=>b.status==='Paying Customer');
+  const paying=biz.filter(b=>b.status==='Paying Customer');
   $('stConv').textContent=(visited.length?Math.round(paying.length/visited.length*100):0)+'%';
   $('stMRR').textContent='$'+paying.reduce((a,b)=>a+price(b),0);
-  const cardSales=S.biz.filter(b=>+b.cardPrice>0);
+  const cardSales=biz.filter(b=>+b.cardPrice>0);
   $('stCards').textContent=cardSales.length;
   $('stCardRev').textContent='$'+cardSales.reduce((a,b)=>a+ +b.cardPrice,0);
   const goalLeft=goal-k,now=new Date(),end=new Date(t+'T'+(S.settings.endTime||'17:00'));
   const minsLeft=Math.round((end-now)/6e4);
   $('paceLine').textContent=goalLeft<=0?'🎉 Goal hit — keep going!':(minsLeft>0?goalLeft+' doors left — one every '+Math.max(1,Math.floor(minsLeft/goalLeft))+' min to finish by '+(S.settings.endTime||'17:00'):goalLeft+' doors short of goal today');
   const open=b=>b.status!=='Declined';
-  const due=S.biz.filter(b=>b.followUp&&b.followUp<=t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
-  const upcoming=S.biz.filter(b=>b.followUp&&b.followUp>t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1).slice(0,10);
+  const due=biz.filter(b=>b.followUp&&b.followUp<=t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
+  const upcoming=biz.filter(b=>b.followUp&&b.followUp>t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1).slice(0,10);
   $('dueList').innerHTML=due.length?due.map(b=>bizCard(b,b.followUp<t?'overdue':'due')).join(''):'<p class="small">Nothing due. Go knock doors.</p>';
   $('upcomingList').innerHTML=upcoming.length?upcoming.map(b=>bizCard(b)).join(''):'<p class="small">Nothing scheduled.</p>';
   $('endingList').innerHTML=ending.length?ending.map(b=>bizCard(b)).join(''):'<p class="small">No trials close to day 30.</p>';
-  $('hdrCount').textContent=S.biz.length+' businesses';
+  let sync='';
+  if(S.settings.backend&&S.lastSync)sync=' · ⇅ '+new Date(S.lastSync).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  $('hdrCount').textContent=biz.length+' businesses'+sync;
 }
 
 /* ================= LEADS ================= */
 let filterStatus='All',sortBy='new';
 function setSort(s,btn){sortBy=s;document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderLeads();}
 function renderChips(){
-  const counts={All:S.biz.length};STATUSES.forEach(s=>counts[s]=S.biz.filter(b=>b.status===s).length);
+  const biz=alive();
+  const counts={All:biz.length};STATUSES.forEach(s=>counts[s]=biz.filter(b=>b.status===s).length);
   $('statusChips').innerHTML=['All',...STATUSES].map(s=>
     `<button class="chip ${filterStatus===s?'on':''}" onclick="filterStatus='${s}';renderLeads()">${s} (${counts[s]||0})</button>`).join('');
 }
 function bizCard(b,extra){
   const ti=trialInfo(b);
   const fu=b.followUp?(b.followUp+(b.followUpTime?' '+fmtTime(b.followUpTime):'')):'';
+  const ln=lastNote(b);
   return `<div class="biz ${extra||''}" onclick="openDetail('${b.id}')">
     <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
@@ -471,12 +526,13 @@ function bizCard(b,extra){
     ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}</div>
     <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}
     ${fu?' · 📅 '+esc(fu):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
+    ${ln?`<div class="meta">📝 ${esc(ln)}</div>`:''}
   </div>`;
 }
 function renderLeads(){
   renderChips();
   const q=($('q').value||'').toLowerCase();
-  let list=S.biz.filter(b=>filterStatus==='All'||b.status===filterStatus);
+  let list=alive().filter(b=>filterStatus==='All'||b.status===filterStatus);
   if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
   if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
   if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
@@ -552,7 +608,7 @@ function statusWizard(id,st){
   $('wTrialDate').value=b.trialStart||today();
   let defDate='';
   if(st==='Follow-Up'){const d=new Date();d.setDate(d.getDate()+2);defDate=d.toISOString().slice(0,10);}
-  if(st==='Trial Started'){const d=new Date();d.setDate(d.getDate()+7);defDate=d.toISOString().slice(0,10);}
+  if(st==='Trial Started'){const d=new Date();d.setDate(d.getDate()+5);defDate=d.toISOString().slice(0,10);}
   $('wFDate').value=b.followUp||defDate;$('wFTime').value=b.followUpTime||'';
   $('wNote').value='';
   $('mStatus').classList.add('open');window.scrollTo(0,0);
@@ -616,40 +672,45 @@ function openDetail(id){
     ${b.phone?'📞 <a class="link" href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a><br>':''}
     ${b.contact?'👤 '+esc(b.contact)+'<br>':''}
     ${b.nfc?'🪪 NFC card: '+esc(b.nfc)+'<br>':''}
-    ${fu?'📅 Follow-up: '+esc(fu)+'<br>':''}
+    ${fu?'📅 Follow-up: <b style="color:var(--amb)">'+esc(fu)+'</b><br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
     ${growth!=null&&!isNaN(growth)?'⭐ Reviews: '+esc(b.reviewsStart)+' → '+esc(b.reviewsNow)+' (<b style="color:var(--grn)">+'+growth+'</b>)<br>':''}
-    ${b.ghl?'🔗 GHL: '+esc(b.ghl)+'<br>':''}
-    ${b.notes?'📝 <span style="white-space:pre-wrap">'+esc(b.notes)+'</span>':''}
+    ${b.ghl?'🔗 GHL: '+esc(b.ghl):''}
   </div>
+  <h3 style="margin-bottom:6px">📝 Notes & history</h3>
+  ${b.notes?`<div class="notebox">${esc(b.notes)}</div>`:'<p class="small" style="margin-bottom:10px">No notes yet.</p>'}
+  <button class="btn sec" style="margin-bottom:12px" onclick="addNote('${b.id}')">＋ Add note</button>
   <label>Update status (asks quick questions)</label>
   <select onchange="statusWizard('${b.id}',this.value)">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select>
+  ${b.reviewUrl?`
   <div class="row" style="margin-bottom:8px">
-    ${b.reviewUrl?`<button class="btn" onclick="copy('${esc(b.reviewUrl)}','Review link copied!')">⭐ Copy review link</button>`:`<button class="btn sec" onclick="findMaps('${b.id}')">🔎 Find on Maps</button>`}
-  </div>
+    <button class="btn" onclick="window.open('${esc(b.reviewUrl)}','_blank')">⭐ Show review page</button>
+    <button class="btn sec" onclick="copy('${esc(b.reviewUrl)}','Review link copied!')">📋 Copy link</button>
+  </div>`:`
   <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" onclick="findMaps('${b.id}')">🔎 Find on Maps</button>
+  </div>`}
+  <div class="row" style="margin-bottom:12px">
     <button class="btn sec" onclick="openMaps('${b.id}')">🗺 Navigate</button>
-    ${b.reviewUrl?`<button class="btn sec" onclick="showQR('${b.id}')">▦ QR code</button>`:''}
+    <button class="btn sec" onclick="proposal('${b.id}',false)">📄 Proposal</button>
+    ${b.phone?`<button class="btn sec" onclick="proposal('${b.id}',true)">💬 Text it</button>`:''}
   </div>
-  <div class="row" style="margin-bottom:8px">
-    <button class="btn sec" onclick="copyStripe('seo')">💳 SEO link</button>
-    <button class="btn sec" onclick="copyStripe('trial')">💳 Trial link</button>
-  </div>
-  <div class="row" style="margin-bottom:8px">
-    <button class="btn sec" onclick="copyStripe('c30')">Card $30</button>
-    <button class="btn sec" onclick="copyStripe('c40')">Card $40</button>
-    <button class="btn sec" onclick="copyStripe('c50')">Card $50</button>
-  </div>
-  <div class="row" style="margin-bottom:8px">
-    <button class="btn sec" onclick="proposal('${b.id}',false)">📄 Copy proposal</button>
-    ${b.phone?`<button class="btn sec" onclick="proposal('${b.id}',true)">💬 Text proposal</button>`:''}
-  </div>
+  <h3 style="margin-bottom:6px">💳 Payment links</h3>
+  <div style="margin-bottom:4px">${payRows()}</div>
   <div class="row">
     <button class="btn sec" onclick="closeM('mDetail');openForm('${b.id}')">✏️ Edit</button>
     <button class="btn danger" onclick="delBiz('${b.id}')">🗑 Delete</button>
   </div>
   <div style="height:30px"></div>`;
   $('mDetail').classList.add('open');window.scrollTo(0,0);
+}
+async function addNote(id){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const v=await ask('Add a note for '+b.name+':',{input:true,ok:'Save note'});
+  if(v==null||!v.trim())return;
+  b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+v.trim();
+  b.updatedAt=new Date().toISOString();
+  save();openDetail(id);renderLeads();toast('Note added ✓');
 }
 function openMaps(id){
   const b=S.biz.find(x=>x.id===id);
@@ -660,16 +721,12 @@ function findMaps(id){
   window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(b.name+' '+(b.address||'')),'_blank');
   toast('Find them on Maps, then grab the Place ID');
 }
-function delBiz(id){
-  if(!confirm('Delete this business?'))return;
-  S.biz=S.biz.filter(x=>x.id!==id);save();closeM('mDetail');renderLeads();renderDash();
-}
-function showQR(id){
-  const b=S.biz.find(x=>x.id===id);if(!b||!b.reviewUrl)return;
-  $('qrTarget').innerHTML='';$('qrUrl').textContent=b.reviewUrl;
-  if(typeof QRCode!=='undefined'){new QRCode($('qrTarget'),{text:b.reviewUrl,width:220,height:220});}
-  else $('qrTarget').innerHTML='<p style="color:#000">Offline — QR library not loaded. URL below.</p>';
-  $('mQr').classList.add('open');
+async function delBiz(id){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const yes=await ask('Delete "'+b.name+'"?\nIt will be removed from the whole team on next sync.',{ok:'Delete',danger:true});
+  if(!yes)return;
+  b.deleted=true;b.updatedAt=new Date().toISOString();
+  save();closeM('mDetail');renderLeads();renderDash();toast('Deleted');
 }
 function proposal(id,sms){
   const b=S.biz.find(x=>x.id===id),s=S.settings;
@@ -690,13 +747,6 @@ Questions? Just reply here. — ${s.rep||s.brand}`;
   if(sms&&b.phone){window.open('sms:'+b.phone+'?&body='+encodeURIComponent(txt));}
   else copy(txt,'Proposal copied!');
 }
-function copyStripe(which){
-  const s=S.settings;
-  const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
-  const[l,label]=map[which]||['',''];
-  if(!l)return toast('Set the "'+label+'" link in Settings first');
-  copy(l,label+' link copied!');
-}
 
 /* ================= PITCH ================= */
 function fillVars(t){
@@ -709,6 +759,7 @@ function renderPitch(){
   $('pitchScript').textContent=fillVars(S.settings.script||DEFAULT_SCRIPT);
   $('objections').innerHTML=OBJECTIONS.map((o,i)=>
     `<div class="acc-item" id="acc${i}"><button onclick="document.getElementById('acc${i}').classList.toggle('open')">${esc(o[0])}</button><div>${esc(fillVars(o[1]))}</div></div>`).join('');
+  $('payLinksPitch').innerHTML=payRows();
   const t=today();if(!S.checks[t])S.checks={[t]:{}};
   $('checklist').innerHTML=CHECKLIST.map((c,i)=>
     `<div class="check ${S.checks[t][i]?'done':''}"><input type="checkbox" ${S.checks[t][i]?'checked':''} onchange="tickCheck(${i},this.checked)"><span>${esc(c)}</span></div>`).join('');
@@ -725,6 +776,7 @@ function renderSettings(){
   $('sIntroSeo').value=s.introSeo;$('sIntroWeb').value=s.introWeb;
   $('sScript').value=s.script||DEFAULT_SCRIPT;
   $('sEnd').value=s.endTime||'17:00';$('sBackend').value=s.backend||'';$('sKey').value=s.teamKey||'';
+  $('syncInfo').textContent=S.lastSync?('Last backed up: '+new Date(S.lastSync).toLocaleString()+'. Auto-backs up a few seconds after every change.'):'Auto-backs up to the team database a few seconds after every change.';
 }
 function saveSettings(){
   const s=S.settings;
@@ -749,7 +801,7 @@ function download(name,content,type){
 }
 function exportCSV(){
   const rows=[CSV_COLS.join(',')];
-  S.biz.forEach(b=>rows.push(CSV_COLS.map(c=>csvCell(b[c])).join(',')));
+  alive().forEach(b=>rows.push(CSV_COLS.map(c=>csvCell(b[c])).join(',')));
   download('tech4sure-leads-'+today()+'.csv',rows.join('\n'),'text/csv');
   toast('CSV exported');
 }
@@ -795,18 +847,21 @@ function importCSV(inp){
 function importJSON(inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
     try{const d=JSON.parse(r.result);
       if(!d.biz||!d.settings)throw 0;
-      if(!confirm('Replace ALL current data with this backup?'))return;
-      S=d;save();location.reload();
+      const yes=await ask('Replace ALL current data on this device with this backup?',{ok:'Replace',danger:true});
+      if(!yes)return;
+      S=d;localStorage.setItem(KEY,JSON.stringify(S));location.reload();
     }catch(e){toast('Not a valid backup file');}
   };
   r.readAsText(f);inp.value='';
 }
-function wipe(){
-  if(!confirm('Delete ALL data? This cannot be undone.'))return;
-  if(!confirm('Really sure? Export a backup first!'))return;
+async function wipe(){
+  const a=await ask('Delete ALL data on this device?',{ok:'Continue',danger:true});
+  if(!a)return;
+  const b=await ask('Really sure? Export a backup first! This cannot be undone.',{ok:'Delete everything',danger:true});
+  if(!b)return;
   localStorage.removeItem(KEY);location.reload();
 }
 
@@ -820,14 +875,23 @@ async function api(action,payload){
   return j;
 }
 async function syncNow(silent){
+  if(inSync)return;
+  inSync=true;
   try{
     if(!silent)toast('Syncing…');
     const j=await api('push',{rep:S.settings.rep,biz:S.biz});
-    S.biz=j.biz.map(b=>{b.intro=(b.intro==1||b.intro===true);return b;});
-    save();renderDash();
-    if(document.getElementById('tab-leads').classList.contains('active'))renderLeads();
-    if(!silent)toast('Synced ✓ '+S.biz.length+' leads shared');
+    S.biz=j.biz.map(b=>{
+      b.intro=(b.intro==1||b.intro===true);
+      b.deleted=(b.deleted===true||b.deleted==='true'||b.deleted==='TRUE'||b.deleted==1);
+      return b;
+    });
+    S.lastSync=Date.now();
+    localStorage.setItem(KEY,JSON.stringify(S));
+    renderDash();
+    if($('tab-leads').classList.contains('active'))renderLeads();
+    if(!silent)toast('Synced ✓ '+alive().length+' leads shared');
   }catch(e){if(!silent)toast('Sync failed: '+e.message);}
+  finally{inSync=false;}
 }
 
 /* ================= PROSPECTS ================= */
@@ -839,7 +903,7 @@ async function hunt(){
     const j=await api('hunt',{q});
     let added=0;
     j.prospects.forEach(p=>{
-      if(S.biz.some(b=>b.placeId===p.placeId))return;
+      if(alive().some(b=>b.placeId===p.placeId))return;
       const ex=S.prospects.find(x=>x.placeId===p.placeId);
       if(ex)Object.assign(ex,p,{sel:ex.sel});else{S.prospects.push(p);added++;}
     });
@@ -853,7 +917,7 @@ function scoreBadge(sc){
   return `<span class="badge ${cls}">${sc} ${lbl}</span>`;
 }
 function renderPros(){
-  const list=S.prospects.filter(p=>!p.promoted&&!S.biz.some(b=>b.placeId===p.placeId))
+  const list=S.prospects.filter(p=>!p.promoted&&!alive().some(b=>b.placeId===p.placeId))
     .sort((a,b)=>b.score-a.score).slice(0,150);
   $('prosList').innerHTML=list.length?list.map(p=>`
     <div class="biz" style="cursor:default">
@@ -940,7 +1004,7 @@ async function doRoute(stops){
 }
 function routeSelected(){doRoute(S.prospects.filter(p=>p.sel&&!p.promoted));}
 function routeTop(){
-  doRoute(S.prospects.filter(p=>!p.promoted&&!S.biz.some(b=>b.placeId===p.placeId))
+  doRoute(S.prospects.filter(p=>!p.promoted&&!alive().some(b=>b.placeId===p.placeId))
     .sort((a,b)=>b.score-a.score).slice(0,10));
 }
 
@@ -951,4 +1015,3 @@ if(S.settings.backend)syncNow(true);
 </script>
 </body>
 </html>
-                             
