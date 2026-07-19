@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v7.0: payments feed dashboard (collected $, cards sold count), status from payment, follow-up badges on cards, stats history, no modal stacking -->
+<!-- v8.0: decluttered dashboard (desktop width cap, MRR removed), payment stats (all/expected/confirmed, clickable), owed-amount flow in payments, text-review-link button, clear prospects -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -21,7 +21,7 @@ body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSys
 h1{font-size:1.15rem} h2{font-size:1rem;margin-bottom:8px} h3{font-size:.9rem}
 header{position:sticky;top:0;z-index:50;background:var(--bg);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line)}
 header .brand{color:var(--acc);font-weight:700}
-.tab{display:none;padding:14px} .tab.active{display:block}
+.tab{display:none;padding:14px;max-width:760px;margin:0 auto} .tab.active{display:block}
 nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;z-index:60}
 nav button{flex:1;background:none;border:none;color:var(--mut);padding:9px 0 max(9px, env(safe-area-inset-bottom));font-size:.68rem;cursor:pointer}
 nav button .ic{display:block;font-size:1.25rem;margin-bottom:2px}
@@ -116,10 +116,10 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div class="stat"><div class="v grn" id="stTrials">0</div><div class="l">Active trials</div></div>
     <div class="stat"><div class="v amb" id="stEnding">0</div><div class="l">Trials ending ≤5d</div></div>
     <div class="stat"><div class="v vio" id="stConv">0%</div><div class="l">Visit → paid conversion</div></div>
-    <div class="stat"><div class="v grn" id="stMRR">$0</div><div class="l">MRR</div></div>
     <div class="stat"><div class="v amb" id="stCards">0</div><div class="l">Cards sold</div></div>
-    <div class="stat"><div class="v grn" id="stCardRev">$0</div><div class="l">Card revenue (booked)</div></div>
-    <div class="stat"><div class="v grn" id="stCollected">$0</div><div class="l">💰 Collected (all payments)</div></div>
+    <div class="stat" onclick="showPayments()" style="cursor:pointer"><div class="v grn" id="stCollected">$0</div><div class="l">💰 All payments · tap to view</div></div>
+    <div class="stat"><div class="v amb" id="stExpected">$0</div><div class="l">⏳ Expected (still owed)</div></div>
+    <div class="stat"><div class="v grn" id="stConfirmed">$0</div><div class="l">✅ Paid & confirmed</div></div>
   </div>
 
   <div class="card" style="margin-top:12px">
@@ -162,7 +162,10 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div class="card">
     <h2>🎯 Find & score prospects</h2>
     <input id="huntQ" placeholder='e.g. "barbers in Frisco TX" or "restaurants near 75035"'>
-    <button class="btn" onclick="hunt()">🔍 Search & analyze area</button>
+    <div class="row">
+      <button class="btn" onclick="hunt()">🔍 Search & analyze area</button>
+      <button class="btn sec" style="flex:0 0 auto" onclick="clearPros()">🗑 Clear</button>
+    </div>
     <p class="small" style="margin-top:8px">Scores who needs you most: few reviews, no website, weak rating, high-traffic type. Needs Team Sync backend (Settings).</p>
   </div>
   <div class="row" style="margin-bottom:8px">
@@ -199,6 +202,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <label>Your name (shown on proposals)</label><input id="sRep">
     <label>Daily door goal</label><input id="sGoal" type="number" inputmode="numeric">
     <label>Workday end (pace deadline)</label><input id="sEnd" type="time">
+    <label>Text review links to (your phone #)</label><input id="sTextTo" type="tel" placeholder="e.g. 9142450000">
   </div>
   <div class="card">
     <h2>🔄 Team Sync — shared database</h2>
@@ -363,6 +367,13 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div style="height:30px"></div>
 </div></div>
 
+<!-- ============ PAYMENTS LIST MODAL ============ -->
+<div class="modal" id="mPayList"><div class="sheet">
+  <div class="sheet-head"><h2 class="mb0">💰 All payments</h2><button class="x" onclick="closeM('mPayList')">✕</button></div>
+  <div id="payListBody"></div>
+  <div style="height:30px"></div>
+</div></div>
+
 <!-- ============ PAYMENT MODAL ============ -->
 <div class="modal" id="mPay" style="z-index:150"><div class="sheet">
   <div class="sheet-head"><h2 class="mb0" id="payTitle">Record payment</h2><button class="x" onclick="cancelPay()">✕</button></div>
@@ -381,6 +392,15 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
       <div><label>Method</label><select id="pMethod"><option>Cash</option><option>Card</option></select></div>
     </div>
     <p class="small" id="pBalInfo"></p>
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">🧾 After this payment, do they still owe?</h3>
+    <select id="pOwed" onchange="document.getElementById('pOwedAmt').style.display=this.value==='yes'?'block':'none'">
+      <option value="no">No — paid in full ✓</option>
+      <option value="yes">Yes, still owes…</option>
+      <option value="skip">Don't change totals</option>
+    </select>
+    <input id="pOwedAmt" type="number" inputmode="decimal" placeholder="Amount still owed ($)" style="display:none">
   </div>
   <div class="wbox">
     <h3 style="margin-bottom:8px">🪪 Cards sold</h3>
@@ -573,10 +593,10 @@ function renderDash(){
   $('stEnding').textContent=ending.length;
   const paying=biz.filter(b=>b.status==='Active Customer');
   $('stConv').textContent=(visited.length?Math.round(paying.length/visited.length*100):0)+'%';
-  $('stMRR').textContent='$'+paying.reduce((a,b)=>a+price(b),0);
   $('stCards').textContent=biz.reduce((a,b)=>a+(+b.cardCount||(+b.cardPrice>0?1:0)),0);
-  $('stCardRev').textContent='$'+biz.reduce((a,b)=>a+(+b.cardPrice||0)*(+b.cardCount||1),0);
   $('stCollected').textContent='$'+biz.reduce((a,b)=>a+(+b.amountPaid||0),0);
+  $('stExpected').textContent='$'+biz.reduce((a,b)=>a+payInfo(b).bal,0);
+  $('stConfirmed').textContent='$'+biz.reduce((a,b)=>a+(payInfo(b).bal===0?(+b.amountPaid||0):0),0);
   const goalLeft=goal-k,now=new Date(),end=new Date(t+'T'+(S.settings.endTime||'17:00'));
   const minsLeft=Math.round((end-now)/6e4);
   $('paceLine').textContent=goalLeft<=0?'🎉 Goal hit — keep going!':(minsLeft>0?goalLeft+' doors left — one every '+Math.max(1,Math.floor(minsLeft/goalLeft))+' min to finish by '+(S.settings.endTime||'17:00'):goalLeft+' doors short of goal today');
@@ -761,7 +781,7 @@ function applyStatus(){
   save();closeM('mStatus');
   openDetail(id);
   renderLeads();renderDash();
-  toast(st==='Active Customer'?'💰 Customer! $'+price(b)+'/mo added to MRR':'Status → '+st);
+  toast(st==='Active Customer'?'💰 Customer! $'+price(b)+'/mo subscription':'Status → '+st);
 }
 
 /* ================= DETAIL ================= */
@@ -810,11 +830,14 @@ function openDetail(id){
   <div class="row" style="margin-bottom:8px">
     <button class="btn sec" onclick="findMaps('${b.id}')">🔎 Find on Maps</button>
   </div>`}
-  <div class="row" style="margin-bottom:12px">
+  <div class="row" style="margin-bottom:8px">
     <button class="btn sec" onclick="openMaps('${b.id}')">🗺 Navigate</button>
     <button class="btn sec" onclick="proposal('${b.id}',false)">📄 Proposal</button>
     ${b.phone?`<button class="btn sec" onclick="proposal('${b.id}',true)">💬 Text it</button>`:''}
   </div>
+  ${b.reviewUrl?`<div class="row" style="margin-bottom:12px">
+    <button class="btn sec" onclick="textReviewLink('${b.id}')">📲 Text review link to my number</button>
+  </div>`:''}
   <h3 style="margin-bottom:6px">💳 Payment links</h3>
   <div style="margin-bottom:4px">${payRows()}</div>
   <div class="row">
@@ -825,6 +848,18 @@ function openDetail(id){
   $('mDetail').classList.add('open');window.scrollTo(0,0);
 }
 const EARLY_STATUSES=['Not Visited','Visited','Contact Given','Potential Customer'];
+function showPayments(){
+  const list=alive().filter(b=>+b.amountPaid>0).sort((a,b)=>(+b.amountPaid)-(+a.amountPaid));
+  $('payListBody').innerHTML=list.length?list.map(b=>{
+    const pi=payInfo(b);
+    return `<div class="biz" onclick="closeM('mPayList');openDetail('${b.id}')">
+      <div class="nm">${esc(b.name)} <span class="badge ${pi.bal>0?'trial-a':'trial-g'}">paid $${pi.paid}${pi.bal>0?' · owes $'+pi.bal:' ✓'}</span></div>
+      <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}</div>
+    </div>`;}).join('')
+   +`<p class="small" style="margin-top:8px">Total received: $${list.reduce((a,b)=>a+(+b.amountPaid||0),0)}</p>`
+   :'<div class="card"><p class="small">No payments recorded yet.</p></div>';
+  $('mPayList').classList.add('open');window.scrollTo(0,0);
+}
 function openPay(id){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
   const pi=payInfo(b);
@@ -833,7 +868,10 @@ function openPay(id){
   $('payTitle').textContent='💵 '+b.name;
   $('pAmt').value=pi.bal>0&&pi.bal<=50?pi.bal:'';
   $('pMethod').value='Cash';
-  $('pBalInfo').textContent=pi.due>0?('Due $'+pi.due+' · Paid $'+pi.paid+' · Balance $'+pi.bal):'No total set yet — set "Total due" in Edit, or just record what they paid.';
+  $('pBalInfo').textContent=pi.due>0?('Due $'+pi.due+' · Paid $'+pi.paid+' · Balance $'+pi.bal):'First payment — answer "still owe?" below and totals set themselves.';
+  $('pOwed').value=pi.bal>0?'yes':'no';
+  $('pOwedAmt').style.display=pi.bal>0?'block':'none';
+  $('pOwedAmt').value='';
   $('pCards').value=b.cardCount||'';
   $('pStatus').innerHTML=STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('');
   $('pFuChips').innerHTML=fuChipsHtml('pFDate');
@@ -854,6 +892,9 @@ function savePay(){
   if(!amt&&!cards)return toast('Enter an amount or cards sold');
   if(amt)b.amountPaid=(+b.amountPaid||0)+amt;
   if(cards)b.cardCount=cards;
+  const owedSel=$('pOwed').value;
+  if(owedSel==='no')b.amountDue=+b.amountPaid||0;
+  else if(owedSel==='yes')b.amountDue=(+b.amountPaid||0)+(+$('pOwedAmt').value||0);
   b.status=$('pStatus').value;
   if(b.status!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
   b.followUp=$('pFDate').value;b.followUpTime=$('pFTime').value;
@@ -868,7 +909,7 @@ function savePay(){
   save();closeM('mPay');
   openDetail(id);
   renderLeads();renderDash();
-  toast(amt?(bal>0?'Payment saved — $'+bal+' still owed':'💰 Paid in full!'):'Saved ✓');
+  toast(amt?(bal>0?'Payment saved — $'+bal+' still owed':'💰 PAID IN FULL ✓'):'Saved ✓');
 }
 async function refreshStats(id){
   const b=S.biz.find(x=>x.id===id);if(!b||!b.placeId)return toast('No Place ID on this lead');
@@ -885,6 +926,12 @@ async function refreshStats(id){
     const growth=+b.reviewsNow-+b.reviewsStart;
     toast(growth>0?'📈 +'+growth+' reviews since signup!':'Stats updated — '+j.stats.reviews+' reviews, '+j.stats.rating+'★');
   }catch(e){toast('Stats failed: '+e.message);}
+}
+function textReviewLink(id){
+  const b=S.biz.find(x=>x.id===id);if(!b||!b.reviewUrl)return;
+  const n=(S.settings.textTo||'').trim();
+  if(!n)return toast('Set "Text review links to" number in Settings first');
+  window.open('sms:'+n+'?&body='+encodeURIComponent(b.name+' — Google review page: '+b.reviewUrl));
 }
 async function addNote(id){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
@@ -958,6 +1005,7 @@ function renderSettings(){
   $('sIntroSeo').value=s.introSeo;$('sIntroWeb').value=s.introWeb;
   $('sScript').value=s.script||DEFAULT_SCRIPT;
   $('sEnd').value=s.endTime||'17:00';$('sBackend').value=s.backend||'';$('sKey').value=s.teamKey||'';
+  $('sTextTo').value=s.textTo||'';
   $('syncInfo').textContent=S.lastSync?('Last backed up: '+new Date(S.lastSync).toLocaleString()+'. Auto-backs up a few seconds after every change.'):'Auto-backs up to the team database a few seconds after every change.';
 }
 function saveSettings(){
@@ -970,6 +1018,7 @@ function saveSettings(){
   s.introSeo=+$('sIntroSeo').value||50;s.introWeb=+$('sIntroWeb').value||10;
   s.script=$('sScript').value;
   s.endTime=$('sEnd').value||'17:00';s.backend=$('sBackend').value.trim();s.teamKey=$('sKey').value.trim();
+  s.textTo=$('sTextTo').value.trim();
   $('hdrBrand').textContent=s.brand;
   save();toast('Settings saved ✓');
 }
@@ -1131,6 +1180,12 @@ function renderPros(){
       </div>
     </div>`).join(''):'<div class="card"><p class="small">No prospects yet. Search an area above — results are scored and ranked by who needs you most. Set up the backend first (Settings → Team Sync).</p></div>';
 }
+async function clearPros(){
+  const yes=await ask('Clear the prospect list to start a new search?\nLeads you already added are not touched.',{ok:'Clear list'});
+  if(!yes)return;
+  S.prospects=[];$('huntQ').value='';
+  save();renderPros();toast('Prospect list cleared');
+}
 function prosMap(pid){
   const p=S.prospects.find(x=>x.placeId===pid);
   if(p)window.open('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.name+' '+p.address),'_blank');
@@ -1216,8 +1271,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='7';
-const WHATS_NEW="What's new in this update:\n\n💰 Payments now feed the dashboard — new \"Collected\" stat (every dollar recorded) and Cards Sold counts what you enter when recording a payment.\n\n🔄 Record payment now also asks: cards sold, status update, follow-up (picking a date auto-sets Follow-Up on new leads), and an optional note.\n\n📅 Follow-up dates are now colored badges on every lead card — red = overdue, no tapping needed.\n\n📈 Refresh stats keeps history: \"was 140 reviews on 7/10 → 152 on 7/18\".\n\n🪟 Popups no longer stack — each page closes the one under it and brings you back when done.";
+const APP_VERSION='8';
+const WHATS_NEW="What's new in this update:\n\n💰 Cleaner money stats — MRR removed. Now: \"All payments\" (tap it to see who paid what), \"Expected\" (still owed), \"Paid & confirmed\" (fully settled).\n\n🧾 Record payment now asks \"do they still owe?\" — answer it and totals + PAID IN FULL work themselves out. No more going into Edit.\n\n📲 New button on leads: text the store's review page link straight to the number you set in Settings.\n\n🗑 Prospects tab has a Clear button to start fresh searches.\n\n🖥 The app no longer stretches on desktop/iPad landscape.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();});
