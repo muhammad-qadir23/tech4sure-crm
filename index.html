@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v6.0 stage-2: payment tracking (cash/card, balance), follow-up quick picks, Google stats refresh + proof-ready flag, what's-new popup -->
+<!-- v7.0: payments feed dashboard (collected $, cards sold count), status from payment, follow-up badges on cards, stats history, no modal stacking -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -118,7 +118,8 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div class="stat"><div class="v vio" id="stConv">0%</div><div class="l">Visit → paid conversion</div></div>
     <div class="stat"><div class="v grn" id="stMRR">$0</div><div class="l">MRR</div></div>
     <div class="stat"><div class="v amb" id="stCards">0</div><div class="l">Cards sold</div></div>
-    <div class="stat"><div class="v grn" id="stCardRev">$0</div><div class="l">Card revenue</div></div>
+    <div class="stat"><div class="v grn" id="stCardRev">$0</div><div class="l">Card revenue (booked)</div></div>
+    <div class="stat"><div class="v grn" id="stCollected">$0</div><div class="l">💰 Collected (all payments)</div></div>
   </div>
 
   <div class="card" style="margin-top:12px">
@@ -364,7 +365,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 
 <!-- ============ PAYMENT MODAL ============ -->
 <div class="modal" id="mPay" style="z-index:150"><div class="sheet">
-  <div class="sheet-head"><h2 class="mb0" id="payTitle">Record payment</h2><button class="x" onclick="closeM('mPay')">✕</button></div>
+  <div class="sheet-head"><h2 class="mb0" id="payTitle">Record payment</h2><button class="x" onclick="cancelPay()">✕</button></div>
   <input type="hidden" id="pId">
   <div class="wbox">
     <h3 style="margin-bottom:8px">💵 Amount</h3>
@@ -382,12 +383,25 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <p class="small" id="pBalInfo"></p>
   </div>
   <div class="wbox">
+    <h3 style="margin-bottom:8px">🪪 Cards sold</h3>
+    <label>How many review cards does this business have now? (total)</label>
+    <input id="pCards" type="number" inputmode="numeric" placeholder="e.g. 1">
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">🔄 Status</h3>
+    <select id="pStatus"></select>
+  </div>
+  <div class="wbox">
     <h3 style="margin-bottom:8px">📅 Next follow-up (collect the rest / check in)</h3>
     <div class="chips" id="pFuChips"></div>
     <div class="two">
-      <div><label>Date</label><input id="pFDate" type="date"></div>
+      <div><label>Date</label><input id="pFDate" type="date" onchange="payFuStatus()"></div>
       <div><label>Time</label><input id="pFTime" type="time"></div>
     </div>
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">📝 Note (optional)</h3>
+    <textarea id="pNote" placeholder="e.g. paid half, owner wants to see results first"></textarea>
   </div>
   <button class="btn" onclick="savePay()">Save payment</button>
   <div style="height:30px"></div>
@@ -560,9 +574,9 @@ function renderDash(){
   const paying=biz.filter(b=>b.status==='Active Customer');
   $('stConv').textContent=(visited.length?Math.round(paying.length/visited.length*100):0)+'%';
   $('stMRR').textContent='$'+paying.reduce((a,b)=>a+price(b),0);
-  const cardSales=biz.filter(b=>+b.cardPrice>0);
-  $('stCards').textContent=cardSales.length;
-  $('stCardRev').textContent='$'+cardSales.reduce((a,b)=>a+ +b.cardPrice,0);
+  $('stCards').textContent=biz.reduce((a,b)=>a+(+b.cardCount||(+b.cardPrice>0?1:0)),0);
+  $('stCardRev').textContent='$'+biz.reduce((a,b)=>a+(+b.cardPrice||0)*(+b.cardCount||1),0);
+  $('stCollected').textContent='$'+biz.reduce((a,b)=>a+(+b.amountPaid||0),0);
   const goalLeft=goal-k,now=new Date(),end=new Date(t+'T'+(S.settings.endTime||'17:00'));
   const minsLeft=Math.round((end-now)/6e4);
   $('paceLine').textContent=goalLeft<=0?'🎉 Goal hit — keep going!':(minsLeft>0?goalLeft+' doors left — one every '+Math.max(1,Math.floor(minsLeft/goalLeft))+' min to finish by '+(S.settings.endTime||'17:00'):goalLeft+' doors short of goal today');
@@ -595,17 +609,17 @@ function renderChips(){
 }
 function bizCard(b,extra){
   const ti=trialInfo(b);
-  const fu=b.followUp?(b.followUp+(b.followUpTime?' '+fmtTime(b.followUpTime):'')):'';
   const ln=lastNote(b);
+  const fuBadge=b.followUp?`<span class="badge ${b.followUp<today()?'trial-r':'trial-a'}">📅 ${esc(b.followUp)}${b.followUpTime?' '+fmtTime(b.followUpTime):''}</span>`:'';
   return `<div class="biz ${extra||''}" onclick="openDetail('${b.id}')">
     <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
+    ${fuBadge}
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
     ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}
     ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}
     ${payInfo(b).bal>0?'<span class="badge trial-r">💵 owes $'+payInfo(b).bal+'</span>':''}
     ${proofReady(b)?'<span class="badge trial-g">📈 proof ready</span>':''}</div>
-    <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}
-    ${fu?' · 📅 '+esc(fu):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
+    <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
     ${ln?`<div class="meta">📝 ${esc(ln)}</div>`:''}
   </div>`;
 }
@@ -677,6 +691,7 @@ function saveBiz(){
 /* ================= STATUS WIZARD ================= */
 function statusWizard(id,st){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
+  closeM('mDetail'); /* stack navigation: one page at a time */
   $('wId').value=id;$('wStatus').value=st;
   $('wTitle').textContent=b.name+' → '+st;
   const show=(el,v)=>$(el).style.display=v?'block':'none';
@@ -705,8 +720,7 @@ function wizPrice(){
 }
 function cancelWizard(){
   closeM('mStatus');
-  const id=$('wId').value;
-  if($('mDetail').classList.contains('open'))openDetail(id);
+  openDetail($('wId').value);
 }
 function applyStatus(){
   const id=$('wId').value,st=$('wStatus').value;
@@ -745,7 +759,7 @@ function applyStatus(){
   }
   if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
   save();closeM('mStatus');
-  if($('mDetail').classList.contains('open'))openDetail(id);
+  openDetail(id);
   renderLeads();renderDash();
   toast(st==='Active Customer'?'💰 Customer! $'+price(b)+'/mo added to MRR':'Status → '+st);
 }
@@ -775,7 +789,7 @@ function openDetail(id){
     ${fu?'📅 Follow-up: <b style="color:var(--amb)">'+esc(fu)+'</b><br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
     ${growth!=null&&!isNaN(growth)?'⭐ Reviews: '+esc(b.reviewsStart)+' → '+esc(b.reviewsNow)+' (<b style="color:var(--grn)">+'+growth+'</b>)<br>':''}
-    ${b.statsAt?'📈 Google now: '+esc(b.ratingNow)+'★ · '+esc(b.reviewsNow)+' reviews <span style="color:var(--mut)">(checked '+esc(b.statsAt)+')</span><br>':''}
+    ${b.statsAt?'📈 Google: '+(b.statsPrevAt?esc(b.reviewsPrev)+' reviews on '+esc(b.statsPrevAt)+' → ':'')+'<b>'+esc(b.reviewsNow)+' reviews</b> · '+esc(b.ratingNow)+'★ <span style="color:var(--mut)">(checked '+esc(b.statsAt)+')</span><br>':''}
     ${payInfo(b).due>0?'💵 Due $'+payInfo(b).due+' · Paid $'+payInfo(b).paid+' · <b style="color:'+(payInfo(b).bal>0?'var(--red)':'var(--grn)')+'">Balance $'+payInfo(b).bal+'</b><br>':''}
     ${b.ghl?'🔗 GHL: '+esc(b.ghl):''}
   </div>
@@ -810,39 +824,58 @@ function openDetail(id){
   <div style="height:30px"></div>`;
   $('mDetail').classList.add('open');window.scrollTo(0,0);
 }
+const EARLY_STATUSES=['Not Visited','Visited','Contact Given','Potential Customer'];
 function openPay(id){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
   const pi=payInfo(b);
+  closeM('mDetail'); /* stack navigation: one page at a time */
   $('pId').value=id;
   $('payTitle').textContent='💵 '+b.name;
   $('pAmt').value=pi.bal>0&&pi.bal<=50?pi.bal:'';
   $('pMethod').value='Cash';
-  $('pBalInfo').textContent=pi.due>0?('Due $'+pi.due+' · Paid $'+pi.paid+' · Balance $'+pi.bal):'No total set yet — this payment sets it as paid toward whatever you set in Edit.';
+  $('pBalInfo').textContent=pi.due>0?('Due $'+pi.due+' · Paid $'+pi.paid+' · Balance $'+pi.bal):'No total set yet — set "Total due" in Edit, or just record what they paid.';
+  $('pCards').value=b.cardCount||'';
+  $('pStatus').innerHTML=STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('');
   $('pFuChips').innerHTML=fuChipsHtml('pFDate');
   $('pFDate').value=b.followUp||'';$('pFTime').value=b.followUpTime||'';
+  $('pNote').value='';
   $('mPay').classList.add('open');window.scrollTo(0,0);
 }
+function payFuStatus(){
+  /* picking a follow-up date on an early-stage lead auto-suggests Follow-Up status */
+  if($('pFDate').value&&EARLY_STATUSES.includes($('pStatus').value))$('pStatus').value='Follow-Up';
+}
+function cancelPay(){closeM('mPay');openDetail($('pId').value);}
 function savePay(){
   const id=$('pId').value;
   const b=S.biz.find(x=>x.id===id);if(!b)return;
   const amt=+$('pAmt').value||0;
-  if(!amt)return toast('Enter an amount');
-  b.amountPaid=(+b.amountPaid||0)+amt;
+  const cards=+$('pCards').value||0;
+  if(!amt&&!cards)return toast('Enter an amount or cards sold');
+  if(amt)b.amountPaid=(+b.amountPaid||0)+amt;
+  if(cards)b.cardCount=cards;
+  b.status=$('pStatus').value;
+  if(b.status!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
   b.followUp=$('pFDate').value;b.followUpTime=$('pFTime').value;
   b.updatedAt=new Date().toISOString();
   const bal=payInfo(b).bal;
-  b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] paid $'+amt+' '+$('pMethod').value.toLowerCase()+(payInfo(b).due>0?(bal>0?' (balance $'+bal+')':' (PAID IN FULL ✓)'):'');
+  let entry='';
+  if(amt)entry='paid $'+amt+' '+$('pMethod').value.toLowerCase()+(payInfo(b).due>0?(bal>0?' (balance $'+bal+')':' (PAID IN FULL ✓)'):'');
+  if(cards)entry=(entry?entry+' · ':'')+cards+' card'+(cards>1?'s':'')+' total';
+  const note=$('pNote').value.trim();
+  if(note)entry=(entry?entry+' · ':'')+note;
+  if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
   save();closeM('mPay');
-  if($('mDetail').classList.contains('open'))openDetail(id);
+  openDetail(id);
   renderLeads();renderDash();
-  toast(bal>0?'Payment saved — $'+bal+' still owed':'💰 Paid in full!');
+  toast(amt?(bal>0?'Payment saved — $'+bal+' still owed':'💰 Paid in full!'):'Saved ✓');
 }
 async function refreshStats(id){
   const b=S.biz.find(x=>x.id===id);if(!b||!b.placeId)return toast('No Place ID on this lead');
   toast('Checking Google…');
   try{
     const j=await api('stats',{placeId:b.placeId});
-    const prev=b.reviewsNow;
+    if(b.statsAt&&b.reviewsNow!==''&&b.reviewsNow!=null){b.reviewsPrev=b.reviewsNow;b.statsPrevAt=b.statsAt;}
     if(b.reviewsStart===''||b.reviewsStart==null)b.reviewsStart=String(j.stats.reviews);
     b.reviewsNow=String(j.stats.reviews);
     b.ratingNow=j.stats.rating;
@@ -942,7 +975,7 @@ function saveSettings(){
 }
 
 /* ================= EXPORT / IMPORT ================= */
-const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','followUpTime','cardPrice','amountDue','amountPaid','ratingNow','statsAt','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
+const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','followUpTime','cardPrice','cardCount','amountDue','amountPaid','ratingNow','statsAt','reviewsPrev','statsPrevAt','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function download(name,content,type){
   const a=document.createElement('a');
@@ -1183,8 +1216,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='6';
-const WHATS_NEW="What's new in this update:\n\n💵 Payment tracking — record cash/card payments with quick amounts ($10–$35 or custom). Every lead shows Due / Paid / Balance, and the dashboard has a new \"Balances to collect\" list.\n\n📅 Follow-up quick picks — Tomorrow, 3 days, 1 week, 2 weeks, 1 month buttons when setting any follow-up.\n\n📈 Refresh stats — one tap on a lead pulls their live Google rating + review count. When reviews grew 5+, the lead gets a \"proof ready — go collect\" flag.\n\n🔔 You'll see a popup like this once after every update.";
+const APP_VERSION='7';
+const WHATS_NEW="What's new in this update:\n\n💰 Payments now feed the dashboard — new \"Collected\" stat (every dollar recorded) and Cards Sold counts what you enter when recording a payment.\n\n🔄 Record payment now also asks: cards sold, status update, follow-up (picking a date auto-sets Follow-Up on new leads), and an optional note.\n\n📅 Follow-up dates are now colored badges on every lead card — red = overdue, no tapping needed.\n\n📈 Refresh stats keeps history: \"was 140 reviews on 7/10 → 152 on 7/18\".\n\n🪟 Popups no longer stack — each page closes the one under it and brings you back when done.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();});
