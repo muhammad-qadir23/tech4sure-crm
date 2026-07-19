@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v5.0: two-way merge sync (deletes can never resurrect), faster sync, wizard layering fix, new status names, follow-up filters -->
+<!-- v6.0 stage-2: payment tracking (cash/card, balance), follow-up quick picks, Google stats refresh + proof-ready flag, what's-new popup -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -124,6 +124,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div class="card" style="margin-top:12px">
     <h2>🔔 Follow-ups due now</h2>
     <div id="dueList"><p class="small">Nothing due. Go knock doors.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>💵 Balances to collect <span class="small" id="owedTotal"></span></h2>
+    <div id="owedList"><p class="small">No outstanding balances.</p></div>
   </div>
 
   <div class="card">
@@ -285,6 +290,8 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div><label>Has website?</label><select id="fWeb"><option value="">Unknown</option><option value="yes">Yes</option><option value="no">No → upsell!</option></select></div>
     <div><label>Trial start date</label><input id="fTrial" type="date"></div>
     <div><label>Card sold ($)</label><input id="fCard" type="number" inputmode="numeric" placeholder="30 / 40 / 50"></div>
+    <div><label>Total due ($)</label><input id="fDue" type="number" inputmode="decimal"></div>
+    <div><label>Paid so far ($)</label><input id="fPaid" type="number" inputmode="decimal"></div>
     <div><label>Next follow-up date</label><input id="fFollow" type="date"></div>
     <div><label>Follow-up time</label><input id="fFollowT" type="time"></div>
     <div><label>Reviews at signup</label><input id="fRev0" type="number" inputmode="numeric"></div>
@@ -312,8 +319,22 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <input id="wPrice" type="number" inputmode="decimal">
   </div>
   <div class="wbox" id="wCardBox" style="display:none">
-    <h3 style="margin-bottom:8px">🪪 Sold a review card?</h3>
-    <select id="wCard"><option value="">No card sale</option><option value="30">Google Review Card — $30</option><option value="40">Google Review Card — $40</option><option value="50">Google Review Card — $50</option></select>
+    <h3 style="margin-bottom:8px">🪪 Card sale & payment</h3>
+    <select id="wCard" onchange="if(this.value)document.getElementById('wDue').value=this.value"><option value="">No card sale</option><option value="30">Google Review Card — $30</option><option value="40">Google Review Card — $40</option><option value="50">Google Review Card — $50</option></select>
+    <label>Total due for this deal ($)</label>
+    <input id="wDue" type="number" inputmode="decimal" placeholder="auto-set from card, edit if different">
+    <label>Collected right now ($) — optional</label>
+    <div class="chips">
+      <button class="chip" onclick="wPayChip(10)">$10</button>
+      <button class="chip" onclick="wPayChip(20)">$20</button>
+      <button class="chip" onclick="wPayChip(25)">$25</button>
+      <button class="chip" onclick="wPayChip(30)">$30</button>
+      <button class="chip" onclick="wPayChip(35)">$35</button>
+    </div>
+    <div class="two">
+      <div><label>Amount ($)</label><input id="wPayAmt" type="number" inputmode="decimal" placeholder="0"></div>
+      <div><label>Method</label><select id="wPayMethod"><option>Cash</option><option>Card</option></select></div>
+    </div>
   </div>
   <div class="wbox" id="wTrialBox" style="display:none">
     <h3 style="margin-bottom:8px">⏳ Trial</h3>
@@ -326,6 +347,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   </div>
   <div class="wbox">
     <h3 style="margin-bottom:8px">📅 Follow up?</h3>
+    <div class="chips" id="wFuChips"></div>
     <div class="two">
       <div><label>Date</label><input id="wFDate" type="date"></div>
       <div><label>Time</label><input id="wFTime" type="time"></div>
@@ -337,6 +359,37 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <textarea id="wNote" placeholder="e.g. spoke to owner Maria, loved the demo, husband decides"></textarea>
   </div>
   <button class="btn" onclick="applyStatus()">Save update</button>
+  <div style="height:30px"></div>
+</div></div>
+
+<!-- ============ PAYMENT MODAL ============ -->
+<div class="modal" id="mPay" style="z-index:150"><div class="sheet">
+  <div class="sheet-head"><h2 class="mb0" id="payTitle">Record payment</h2><button class="x" onclick="closeM('mPay')">✕</button></div>
+  <input type="hidden" id="pId">
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">💵 Amount</h3>
+    <div class="chips">
+      <button class="chip" onclick="payChip(10)">$10</button>
+      <button class="chip" onclick="payChip(20)">$20</button>
+      <button class="chip" onclick="payChip(25)">$25</button>
+      <button class="chip" onclick="payChip(30)">$30</button>
+      <button class="chip" onclick="payChip(35)">$35</button>
+    </div>
+    <div class="two">
+      <div><label>Amount ($)</label><input id="pAmt" type="number" inputmode="decimal"></div>
+      <div><label>Method</label><select id="pMethod"><option>Cash</option><option>Card</option></select></div>
+    </div>
+    <p class="small" id="pBalInfo"></p>
+  </div>
+  <div class="wbox">
+    <h3 style="margin-bottom:8px">📅 Next follow-up (collect the rest / check in)</h3>
+    <div class="chips" id="pFuChips"></div>
+    <div class="two">
+      <div><label>Date</label><input id="pFDate" type="date"></div>
+      <div><label>Time</label><input id="pFTime" type="time"></div>
+    </div>
+  </div>
+  <button class="btn" onclick="savePay()">Save payment</button>
   <div style="height:30px"></div>
 </div></div>
 
@@ -399,6 +452,7 @@ function ask(msg,opts){
     inp.value=opts.value||'';
     $('askYes').textContent=opts.ok||'OK';
     $('askYes').className=opts.danger?'btn danger':'btn';
+    $('askNo').style.display=opts.noCancel?'none':'block';
     $('mAsk').classList.add('open');
     if(opts.input)setTimeout(()=>inp.focus(),60);
     $('askYes').onclick=()=>{$('mAsk').classList.remove('open');res(opts.input?inp.value:true);};
@@ -434,6 +488,21 @@ function lastNote(b){
   let l=lines[lines.length-1].trim();
   return l.length>72?l.slice(0,72)+'…':l;
 }
+function addDays(n){const d=new Date();d.setDate(d.getDate()+n);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function payInfo(b){
+  const due=+b.amountDue||0,paid=+b.amountPaid||0;
+  return{due,paid,bal:Math.max(0,due-paid),status:due<=0?'':(paid<=0?'Unpaid':(paid<due?'Partially Paid':'Paid in Full'))};
+}
+function proofReady(b){
+  return b.reviewsStart!==''&&b.reviewsStart!=null&&b.reviewsNow!==''&&b.reviewsNow!=null&&(+b.reviewsNow-+b.reviewsStart)>=5;
+}
+function fuChipsHtml(target){
+  return [['Tomorrow',1],['3 days',3],['1 week',7],['2 weeks',14],['1 month',30]].map(x=>
+    `<button class="chip" onclick="setFu('${target}',${x[1]})">${x[0]}</button>`).join('');
+}
+function setFu(target,days){$(target).value=addDays(days);}
+function wPayChip(n){$('wPayAmt').value=n;}
+function payChip(n){$('pAmt').value=n;}
 function stripeLink(which){
   const s=S.settings;
   const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
@@ -500,6 +569,9 @@ function renderDash(){
   const open=b=>b.status!=='Declined';
   const due=biz.filter(b=>b.followUp&&b.followUp<=t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
   const upcoming=biz.filter(b=>b.followUp&&b.followUp>t&&open(b)).sort((a,b)=>fuKey(a)<fuKey(b)?-1:1).slice(0,10);
+  const owed=biz.filter(b=>payInfo(b).bal>0).sort((a,b)=>payInfo(b).bal-payInfo(a).bal);
+  $('owedTotal').textContent=owed.length?('$'+owed.reduce((a,b)=>a+payInfo(b).bal,0)+' total'):'';
+  $('owedList').innerHTML=owed.length?owed.map(b=>bizCard(b)).join(''):'<p class="small">No outstanding balances.</p>';
   $('dueList').innerHTML=due.length?due.map(b=>bizCard(b,b.followUp<t?'overdue':'due')).join(''):'<p class="small">Nothing due. Go knock doors.</p>';
   $('upcomingList').innerHTML=upcoming.length?upcoming.map(b=>bizCard(b)).join(''):'<p class="small">Nothing scheduled.</p>';
   $('endingList').innerHTML=ending.length?ending.map(b=>bizCard(b)).join(''):'<p class="small">No trials close to day 30.</p>';
@@ -529,7 +601,9 @@ function bizCard(b,extra){
     <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span>
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
     ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}
-    ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}</div>
+    ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}
+    ${payInfo(b).bal>0?'<span class="badge trial-r">💵 owes $'+payInfo(b).bal+'</span>':''}
+    ${proofReady(b)?'<span class="badge trial-g">📈 proof ready</span>':''}</div>
     <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}
     ${fu?' · 📅 '+esc(fu):''}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
     ${ln?`<div class="meta">📝 ${esc(ln)}</div>`:''}
@@ -565,6 +639,7 @@ function openForm(id){
   set('fPhone',b&&b.phone);set('fContact',b&&b.contact);set('fStatus',b?b.status:'Not Visited');
   set('fReview',b&&b.reviewUrl);set('fPlace',b&&b.placeId);set('fNfc',b&&b.nfc);
   set('fWeb',b?b.hasWebsite:'');set('fTrial',b&&b.trialStart);set('fCard',b&&b.cardPrice);
+  set('fDue',b&&b.amountDue);set('fPaid',b&&b.amountPaid);
   set('fFollow',b&&b.followUp);set('fFollowT',b&&b.followUpTime);
   set('fRev0',b&&b.reviewsStart);set('fRev1',b&&b.reviewsNow);set('fPlan',b?b.plan:'');
   $('fIntro').checked=b?!!b.intro:true;
@@ -588,6 +663,7 @@ function saveBiz(){
     contact:$('fContact').value.trim(),status:$('fStatus').value,reviewUrl:$('fReview').value.trim(),
     placeId:$('fPlace').value.trim(),nfc:$('fNfc').value.trim(),hasWebsite:$('fWeb').value,
     trialStart:$('fTrial').value,cardPrice:$('fCard').value,
+    amountDue:$('fDue').value,amountPaid:$('fPaid').value,
     followUp:$('fFollow').value,followUpTime:$('fFollowT').value,
     reviewsStart:$('fRev0').value,reviewsNow:$('fRev1').value,
     plan:$('fPlan').value,intro:$('fIntro').checked,ghl:$('fGhl').value.trim(),notes:$('fNotes').value.trim(),
@@ -611,10 +687,12 @@ function statusWizard(id,st){
   $('wPlan').value=b.plan||'seo';$('wIntro').checked=b.intro!==false;wizPrice();
   if(b.customPrice)$('wPrice').value=b.customPrice;
   $('wCard').value=b.cardPrice||'';
+  $('wDue').value=b.amountDue||'';$('wPayAmt').value='';$('wPayMethod').value='Cash';
   $('wTrialDate').value=b.trialStart||today();
+  $('wFuChips').innerHTML=fuChipsHtml('wFDate');
   let defDate='';
-  if(st==='Follow-Up'){const d=new Date();d.setDate(d.getDate()+2);defDate=d.toISOString().slice(0,10);}
-  if(st==='Trial Started'){const d=new Date();d.setDate(d.getDate()+5);defDate=d.toISOString().slice(0,10);}
+  if(st==='Follow-Up')defDate=addDays(2);
+  if(st==='Trial Started')defDate=addDays(5);
   $('wFDate').value=b.followUp||defDate;$('wFTime').value=b.followUpTime||'';
   $('wNote').value='';
   $('mStatus').classList.add('open');window.scrollTo(0,0);
@@ -643,14 +721,28 @@ function applyStatus(){
     const entered=+$('wPrice').value||0;
     b.customPrice=(entered&&entered!==auto)?entered:'';
   }
-  if($('wCardBox').style.display!=='none'&&$('wCard').value)b.cardPrice=$('wCard').value;
+  const payBoxOn=$('wCardBox').style.display!=='none';
+  if(payBoxOn&&$('wCard').value)b.cardPrice=$('wCard').value;
+  if(payBoxOn){
+    const dueIn=+$('wDue').value||0;
+    if(dueIn)b.amountDue=dueIn;
+    else if($('wCard').value&&!(+b.amountDue))b.amountDue=+$('wCard').value;
+  }
   if(st==='Trial Started')b.trialStart=$('wTrialDate').value||today();
   b.followUp=$('wFDate').value;b.followUpTime=$('wFTime').value;
   const note=$('wNote').value.trim();
   let entry='';
   if(st==='Declined')entry='Declined: '+$('wWhy').value+(note?' — '+note:'');
   else if(note)entry=note;
-  if($('wCard').value&&$('wCardBox').style.display!=='none')entry=(entry?entry+' · ':'')+'sold card $'+$('wCard').value;
+  if(payBoxOn&&$('wCard').value)entry=(entry?entry+' · ':'')+'sold card $'+$('wCard').value;
+  if(payBoxOn){
+    const payAmt=+$('wPayAmt').value||0;
+    if(payAmt){
+      b.amountPaid=(+b.amountPaid||0)+payAmt;
+      const bal=payInfo(b).bal;
+      entry=(entry?entry+' · ':'')+'paid $'+payAmt+' '+$('wPayMethod').value.toLowerCase()+(bal>0?' (balance $'+bal+')':' (paid in full)');
+    }
+  }
   if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
   save();closeM('mStatus');
   if($('mDetail').classList.contains('open'))openDetail(id);
@@ -671,6 +763,8 @@ function openDetail(id){
     ${ti?`<span class="badge ${ti.cls}">⏳ ${ti.label}</span>`:''}
     ${b.plan&&b.status==='Active Customer'?`<span class="badge s-p">$${price(b)}/mo${b.intro?' (intro)':''}</span>`:''}
     ${+b.cardPrice>0?`<span class="badge s-p">🪪 card $${esc(b.cardPrice)}</span>`:''}
+    ${payInfo(b).status?`<span class="badge ${payInfo(b).bal>0?'trial-r':'trial-g'}">💵 ${payInfo(b).status}</span>`:''}
+    ${proofReady(b)?'<span class="badge trial-g">📈 proof ready — go collect!</span>':''}
   </div>
   <div class="card small" style="line-height:1.9">
     ${b.type?'🏷 '+esc(b.type)+'<br>':''}
@@ -681,7 +775,13 @@ function openDetail(id){
     ${fu?'📅 Follow-up: <b style="color:var(--amb)">'+esc(fu)+'</b><br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
     ${growth!=null&&!isNaN(growth)?'⭐ Reviews: '+esc(b.reviewsStart)+' → '+esc(b.reviewsNow)+' (<b style="color:var(--grn)">+'+growth+'</b>)<br>':''}
+    ${b.statsAt?'📈 Google now: '+esc(b.ratingNow)+'★ · '+esc(b.reviewsNow)+' reviews <span style="color:var(--mut)">(checked '+esc(b.statsAt)+')</span><br>':''}
+    ${payInfo(b).due>0?'💵 Due $'+payInfo(b).due+' · Paid $'+payInfo(b).paid+' · <b style="color:'+(payInfo(b).bal>0?'var(--red)':'var(--grn)')+'">Balance $'+payInfo(b).bal+'</b><br>':''}
     ${b.ghl?'🔗 GHL: '+esc(b.ghl):''}
+  </div>
+  <div class="row" style="margin-bottom:12px">
+    <button class="btn" onclick="openPay('${b.id}')">💵 Record payment</button>
+    ${b.placeId?`<button class="btn sec" onclick="refreshStats('${b.id}')">📈 Refresh stats</button>`:''}
   </div>
   <h3 style="margin-bottom:6px">📝 Notes & history</h3>
   ${b.notes?`<div class="notebox">${esc(b.notes)}</div>`:'<p class="small" style="margin-bottom:10px">No notes yet.</p>'}
@@ -709,6 +809,49 @@ function openDetail(id){
   </div>
   <div style="height:30px"></div>`;
   $('mDetail').classList.add('open');window.scrollTo(0,0);
+}
+function openPay(id){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const pi=payInfo(b);
+  $('pId').value=id;
+  $('payTitle').textContent='💵 '+b.name;
+  $('pAmt').value=pi.bal>0&&pi.bal<=50?pi.bal:'';
+  $('pMethod').value='Cash';
+  $('pBalInfo').textContent=pi.due>0?('Due $'+pi.due+' · Paid $'+pi.paid+' · Balance $'+pi.bal):'No total set yet — this payment sets it as paid toward whatever you set in Edit.';
+  $('pFuChips').innerHTML=fuChipsHtml('pFDate');
+  $('pFDate').value=b.followUp||'';$('pFTime').value=b.followUpTime||'';
+  $('mPay').classList.add('open');window.scrollTo(0,0);
+}
+function savePay(){
+  const id=$('pId').value;
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const amt=+$('pAmt').value||0;
+  if(!amt)return toast('Enter an amount');
+  b.amountPaid=(+b.amountPaid||0)+amt;
+  b.followUp=$('pFDate').value;b.followUpTime=$('pFTime').value;
+  b.updatedAt=new Date().toISOString();
+  const bal=payInfo(b).bal;
+  b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] paid $'+amt+' '+$('pMethod').value.toLowerCase()+(payInfo(b).due>0?(bal>0?' (balance $'+bal+')':' (PAID IN FULL ✓)'):'');
+  save();closeM('mPay');
+  if($('mDetail').classList.contains('open'))openDetail(id);
+  renderLeads();renderDash();
+  toast(bal>0?'Payment saved — $'+bal+' still owed':'💰 Paid in full!');
+}
+async function refreshStats(id){
+  const b=S.biz.find(x=>x.id===id);if(!b||!b.placeId)return toast('No Place ID on this lead');
+  toast('Checking Google…');
+  try{
+    const j=await api('stats',{placeId:b.placeId});
+    const prev=b.reviewsNow;
+    if(b.reviewsStart===''||b.reviewsStart==null)b.reviewsStart=String(j.stats.reviews);
+    b.reviewsNow=String(j.stats.reviews);
+    b.ratingNow=j.stats.rating;
+    b.statsAt=today();
+    b.updatedAt=new Date().toISOString();
+    save();openDetail(id);renderLeads();
+    const growth=+b.reviewsNow-+b.reviewsStart;
+    toast(growth>0?'📈 +'+growth+' reviews since signup!':'Stats updated — '+j.stats.reviews+' reviews, '+j.stats.rating+'★');
+  }catch(e){toast('Stats failed: '+e.message);}
 }
 async function addNote(id){
   const b=S.biz.find(x=>x.id===id);if(!b)return;
@@ -799,7 +942,7 @@ function saveSettings(){
 }
 
 /* ================= EXPORT / IMPORT ================= */
-const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','followUpTime','cardPrice','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
+const CSV_COLS=['name','type','address','phone','contact','status','reviewUrl','placeId','nfc','hasWebsite','trialStart','followUp','followUpTime','cardPrice','amountDue','amountPaid','ratingNow','statsAt','reviewsStart','reviewsNow','plan','intro','ghl','notes','visitedAt','createdAt'];
 function csvCell(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function download(name,content,type){
   const a=document.createElement('a');
@@ -1039,6 +1182,14 @@ renderDash();
 if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
+/* one-time what's-new popup per version */
+const APP_VERSION='6';
+const WHATS_NEW="What's new in this update:\n\n💵 Payment tracking — record cash/card payments with quick amounts ($10–$35 or custom). Every lead shows Due / Paid / Balance, and the dashboard has a new \"Balances to collect\" list.\n\n📅 Follow-up quick picks — Tomorrow, 3 days, 1 week, 2 weeks, 1 month buttons when setting any follow-up.\n\n📈 Refresh stats — one tap on a lead pulls their live Google rating + review count. When reviews grew 5+, the lead gets a \"proof ready — go collect\" flag.\n\n🔔 You'll see a popup like this once after every update.";
+if(S.seenV!==APP_VERSION){
+  setTimeout(()=>{
+    ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();});
+  },800);
+}
 </script>
 </body>
 </html>
