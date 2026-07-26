@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v8.0: decluttered dashboard (desktop width cap, MRR removed), payment stats (all/expected/confirmed, clickable), owed-amount flow in payments, text-review-link button, clear prospects -->
+<!-- v9.0 BETA: worker logins (name+PIN via Workers sheet tab), per-worker lead visibility + admin view, near-me store search, distance sorting, clock in/out with shift stats -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -97,6 +97,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 
 <!-- ============ DASHBOARD ============ -->
 <div class="tab active" id="tab-dash">
+  <div class="card" id="clockCard" style="display:none"></div>
   <div class="card knock">
     <div>
       <div class="small">Doors knocked today</div>
@@ -152,7 +153,9 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <button class="chip on" data-sort="new" onclick="setSort('new',this)">Newest</button>
     <button class="chip" data-sort="follow" onclick="setSort('follow',this)">Follow-up</button>
     <button class="chip" data-sort="street" onclick="setSort('street',this)">Street</button>
+    <button class="chip" data-sort="near" onclick="sortNear(this)">📍 Near me</button>
     <button class="chip" data-sort="name" onclick="setSort('name',this)">A–Z</button>
+    <span id="adminToggle"></span>
   </div>
   <div id="leadList"></div>
 </div>
@@ -162,10 +165,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <div class="card">
     <h2>🎯 Find & score prospects</h2>
     <input id="huntQ" placeholder='e.g. "barbers in Frisco TX" or "restaurants near 75035"'>
-    <div class="row">
+    <div class="row" style="margin-bottom:8px">
       <button class="btn" onclick="hunt()">🔍 Search & analyze area</button>
-      <button class="btn sec" style="flex:0 0 auto" onclick="clearPros()">🗑 Clear</button>
+      <button class="btn sec" style="flex:0 0 auto;width:auto" onclick="clearPros()">🗑 Clear</button>
     </div>
+    <button class="btn sec" onclick="nearMe()">📍 Stores near me right now</button>
     <p class="small" style="margin-top:8px">Scores who needs you most: few reviews, no website, weak rating, high-traffic type. Needs Team Sync backend (Settings).</p>
   </div>
   <div class="row" style="margin-bottom:8px">
@@ -209,6 +213,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <label>Backend URL (Apps Script /exec)</label><input id="sBackend" placeholder="https://script.google.com/macros/s/…/exec">
     <label>Team key</label><input id="sKey" placeholder="same key set in Script Properties">
     <button class="btn sec" onclick="syncNow(false)">🔄 Sync now</button>
+    <button class="btn sec" style="margin-top:8px" onclick="logout()">👤 Switch worker (log out)</button>
     <p class="small" style="margin-top:8px" id="syncInfo">Auto-backs up to the team database a few seconds after every change.</p>
   </div>
   <div class="card">
@@ -263,6 +268,15 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 <button class="fab" id="fab" onclick="openForm()">＋</button>
 <div class="toast" id="toast"></div>
 
+<!-- ============ LOGIN GATE ============ -->
+<div class="modal" id="mLogin" style="z-index:260"><div class="dialog">
+  <h2 style="margin-bottom:10px">👋 Who's working?</h2>
+  <label>Your name (exactly as in the Workers tab)</label><input id="lgName" autocomplete="username">
+  <label>PIN</label><input id="lgPin" type="password" inputmode="numeric" autocomplete="current-password">
+  <button class="btn" onclick="doLogin()">Start my day</button>
+  <p class="small" id="lgErr" style="margin-top:8px"></p>
+</div></div>
+
 <!-- ============ ASK DIALOG (replaces native popups — those freeze iPad home-screen apps) ============ -->
 <div class="modal" id="mAsk" style="z-index:300"><div class="dialog">
   <p id="askMsg" style="margin-bottom:12px;font-size:.95rem;white-space:pre-wrap"></p>
@@ -291,6 +305,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   </div>
   <p class="small" style="margin-bottom:10px">Find the Place ID with Google's <a class="link" href="https://developers.google.com/maps/documentation/places/web-service/place-id#find-id" target="_blank">Place ID finder</a>, or tap "Find on Maps" after saving. Prospects added from the 🎯 tab get this automatically.</p>
   <div class="two">
+    <div><label>Assigned to (worker)</label><input id="fRep" placeholder="worker name"></div>
     <div><label>NFC card ID</label><input id="fNfc" placeholder="e.g. T4S-001"></div>
     <div><label>Has website?</label><select id="fWeb"><option value="">Unknown</option><option value="yes">Yes</option><option value="no">No → upsell!</option></select></div>
     <div><label>Trial start date</label><input id="fTrial" type="date"></div>
@@ -467,6 +482,15 @@ function save(){
   if(S.settings.backend&&!inSync){clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(true),3000);}
 }
 const alive=()=>S.biz.filter(b=>!b.deleted);
+let adminAll=true;
+function wname(){return S.worker?S.worker.name:(S.settings.rep||'');}
+function isAdmin(){return !S.worker||S.worker.role==='admin';}
+function visibleBiz(){
+  let l=alive();
+  if(S.worker&&S.worker.role!=='admin')return l.filter(b=>(b.rep||'')===S.worker.name);
+  if(S.worker&&S.worker.role==='admin'&&!adminAll)return l.filter(b=>(b.rep||'')===S.worker.name);
+  return l;
+}
 
 /* ================= HELPERS ================= */
 const $=id=>document.getElementById(id);
@@ -580,7 +604,8 @@ function knock(n){
 function fuKey(b){return (b.followUp||'9999')+' '+(b.followUpTime||'99:99');}
 function renderDash(){
   const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
-  const biz=alive();
+  const biz=visibleBiz();
+  renderClock();
   $('knockCount').textContent=k;$('knockGoal').textContent=goal;
   $('knockBar').style.width=Math.min(100,k/goal*100)+'%';
   const wk=d=>daysFrom(d)<7;
@@ -618,7 +643,8 @@ function renderDash(){
 let filterStatus='All',sortBy='new';
 function setSort(s,btn){sortBy=s;document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderLeads();}
 function renderChips(){
-  const biz=alive();
+  const biz=visibleBiz();
+  $('adminToggle').innerHTML=(S.worker&&S.worker.role==='admin')?`<button class="chip ${adminAll?'on':''}" onclick="adminAll=!adminAll;renderLeads();renderDash()">${adminAll?'👥 All workers':'👤 Mine only'}</button>`:'';
   const counts={All:biz.length};STATUSES.forEach(s=>counts[s]=biz.filter(b=>b.status===s).length);
   const fuC=biz.filter(b=>b.followUp).length;
   const noC=biz.filter(b=>!b.followUp&&b.status!=='Declined').length;
@@ -638,7 +664,8 @@ function bizCard(b,extra){
     ${b.hasWebsite==='no'?'<span class="badge s-f">🌐 upsell</span>':''}
     ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}
     ${payInfo(b).bal>0?'<span class="badge trial-r">💵 owes $'+payInfo(b).bal+'</span>':''}
-    ${proofReady(b)?'<span class="badge trial-g">📈 proof ready</span>':''}</div>
+    ${proofReady(b)?'<span class="badge trial-g">📈 proof ready</span>':''}
+    ${(S.worker&&S.worker.role==='admin'&&b.rep)?'<span class="badge s-nv">👤 '+esc(b.rep)+'</span>':''}</div>
     <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
     ${ln?`<div class="meta">📝 ${esc(ln)}</div>`:''}
   </div>`;
@@ -646,12 +673,13 @@ function bizCard(b,extra){
 function renderLeads(){
   renderChips();
   const q=($('q').value||'').toLowerCase();
-  let list=alive().filter(b=>filterStatus==='All'?true:filterStatus==='__fu'?!!b.followUp:filterStatus==='__nofu'?(!b.followUp&&b.status!=='Declined'):b.status===filterStatus);
+  let list=visibleBiz().filter(b=>filterStatus==='All'?true:filterStatus==='__fu'?!!b.followUp:filterStatus==='__nofu'?(!b.followUp&&b.status!=='Declined'):b.status===filterStatus);
   if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
   if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
   if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
   if(sortBy==='follow')list.sort((a,b)=>fuKey(a)<fuKey(b)?-1:1);
   if(sortBy==='street')list.sort((a,b)=>streetOf(a.address).localeCompare(streetOf(b.address)));
+  if(sortBy==='near'&&leadLoc)list.sort((a,b)=>((a.lat&&a.lng)?hav(leadLoc,a):1e9)-((b.lat&&b.lng)?hav(leadLoc,b):1e9));
   let html='';
   if(sortBy==='street'){
     let cur=null;
@@ -674,6 +702,7 @@ function openForm(id){
   set('fReview',b&&b.reviewUrl);set('fPlace',b&&b.placeId);set('fNfc',b&&b.nfc);
   set('fWeb',b?b.hasWebsite:'');set('fTrial',b&&b.trialStart);set('fCard',b&&b.cardPrice);
   set('fDue',b&&b.amountDue);set('fPaid',b&&b.amountPaid);
+  set('fRep',b?(b.rep||''):wname());
   set('fFollow',b&&b.followUp);set('fFollowT',b&&b.followUpTime);
   set('fRev0',b&&b.reviewsStart);set('fRev1',b&&b.reviewsNow);set('fPlan',b?b.plan:'');
   $('fIntro').checked=b?!!b.intro:true;
@@ -701,6 +730,7 @@ function saveBiz(){
     followUp:$('fFollow').value,followUpTime:$('fFollowT').value,
     reviewsStart:$('fRev0').value,reviewsNow:$('fRev1').value,
     plan:$('fPlan').value,intro:$('fIntro').checked,ghl:$('fGhl').value.trim(),notes:$('fNotes').value.trim(),
+    rep:$('fRep').value.trim()||wname(),
     updatedAt:new Date().toISOString()
   });
   if(b.status!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
@@ -1133,7 +1163,7 @@ async function syncNow(silent){
   try{
     if(!silent)toast('Syncing…');
     const j=await api('push',{rep:S.settings.rep,biz:S.biz});
-    if(j.v!==2&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
+    if((j.v||0)<3&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
     S.biz=mergeServer(j.biz||[]);
     S.lastSync=Date.now();
     localStorage.setItem(KEY,JSON.stringify(S));
@@ -1168,12 +1198,12 @@ function scoreBadge(sc){
 }
 function renderPros(){
   const list=S.prospects.filter(p=>!p.promoted&&!alive().some(b=>b.placeId===p.placeId))
-    .sort((a,b)=>b.score-a.score).slice(0,150);
+    .sort((a,b)=>nearMode?((a.dist??1e9)-(b.dist??1e9)):(b.score-a.score)).slice(0,150);
   $('prosList').innerHTML=list.length?list.map(p=>`
     <div class="biz" style="cursor:default">
       <div class="nm"><input type="checkbox" style="width:18px;height:18px;margin:0 6px 0 0;vertical-align:-3px" ${p.sel?'checked':''} onchange="toggleSel('${p.placeId}',this.checked)">${esc(p.name)} ${scoreBadge(p.score)}</div>
       <div class="meta">${esc(p.reasons)}</div>
-      <div class="meta">📍 ${esc(p.address)}${p.phone?' · 📞 '+esc(p.phone):''}</div>
+      <div class="meta">${p.dist!=null?'🚶 '+(p.dist<1?Math.round(p.dist*1000)+'m':p.dist.toFixed(1)+'km')+' · ':''}📍 ${esc(p.address)}${p.phone?' · 📞 '+esc(p.phone):''}</div>
       <div class="row" style="margin-top:8px">
         <button class="btn sm" onclick="promote('${p.placeId}')">＋ Add to leads</button>
         <button class="btn sm sec" onclick="prosMap('${p.placeId}')">🗺 Map</button>
@@ -1200,10 +1230,96 @@ function promote(pid){
     reviewUrl:'https://search.google.com/local/writereview?placeid='+p.placeId,
     hasWebsite:p.website?'yes':'no',nfc:'',trialStart:'',followUp:'',followUpTime:'',cardPrice:'',
     reviewsStart:String(p.reviews||''),reviewsNow:'',plan:'',intro:true,ghl:'',
-    notes:'Prospect score '+p.score+' — '+p.reasons,lat:p.lat,lng:p.lng
+    notes:'Prospect score '+p.score+' — '+p.reasons,lat:p.lat,lng:p.lng,rep:wname()
   });
   p.promoted=true;save();renderPros();renderDash();
   toast(p.name+' added to leads ✓ (review link ready)');
+}
+
+/* ================= LOGIN / WORKERS ================= */
+async function doLogin(){
+  const n=$('lgName').value.trim(),p=$('lgPin').value.trim();
+  if(!n||!p)return $('lgErr').textContent='Enter your name and PIN';
+  $('lgErr').textContent='Checking…';
+  try{
+    const j=await api('login',{worker:n,pin:p});
+    S.worker={name:n,role:j.role||'worker'};
+    S.settings.rep=n;
+    save();closeM('mLogin');
+    renderDash();renderLeads();
+    toast('Welcome, '+n+(j.role==='admin'?' (admin)':'')+' 👋');
+  }catch(e){$('lgErr').textContent=e.message;}
+}
+async function logout(){
+  const yes=await ask('Log out? Next person will enter their own name + PIN.',{ok:'Log out'});
+  if(!yes)return;
+  S.worker=null;S.shift=null;save();location.reload();
+}
+function checkLogin(){
+  if(S.settings.backend&&S.settings.teamKey&&!S.worker)$('mLogin').classList.add('open');
+}
+
+/* ================= CLOCK IN/OUT ================= */
+function renderClock(){
+  const c=$('clockCard');
+  if(!S.settings.backend){c.style.display='none';return;}
+  c.style.display='block';
+  if(S.shift){
+    const mins=Math.floor((Date.now()-new Date(S.shift.start))/6e4);
+    c.innerHTML=`<div class="knock"><div><div class="small">⏱ Clocked in ${new Date(S.shift.start).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})} · ${Math.floor(mins/60)}h ${mins%60}m</div><div class="small" style="color:var(--grn)">${esc(wname())} on shift</div></div><button class="btn sm danger" style="border-radius:10px" onclick="clockOut()">Clock out</button></div>`;
+  }else{
+    c.innerHTML=`<div class="knock"><div class="small">Not clocked in${S.worker?' — '+esc(wname()):''}</div><button class="btn sm" style="border-radius:10px" onclick="clockIn()">⏱ Clock in</button></div>`;
+  }
+}
+async function clockIn(){
+  const me=await getLoc();
+  S.shift={start:new Date().toISOString(),knocks0:S.knocks[today()]||0};
+  save();renderClock();
+  api('clock',{type:'in',worker:wname(),lat:me?me.lat:'',lng:me?me.lng:''}).catch(()=>toast('Offline — shift start saved on device'));
+  toast('⏱ Clocked in — go get \'em');
+}
+async function clockOut(){
+  if(!S.shift)return;
+  const start=S.shift.start;
+  const hours=((Date.now()-new Date(start))/36e5).toFixed(2);
+  const doors=Math.max(0,(S.knocks[today()]||0)-(S.shift.knocks0||0));
+  const mine=alive().filter(b=>!S.worker||S.worker.role==='admin'||(b.rep||'')===wname());
+  const touched=mine.filter(b=>b.updatedAt&&b.updatedAt>=start).length;
+  const deals=mine.filter(b=>b.status==='Active Customer'&&b.updatedAt&&b.updatedAt>=start).length;
+  const me=await getLoc();
+  try{await api('clock',{type:'out',worker:wname(),lat:me?me.lat:'',lng:me?me.lng:'',stats:{hours,doors,touched,deals}});}
+  catch(e){toast('Shift saved locally — sync failed: '+e.message);}
+  S.shift=null;save();renderClock();
+  ask('Shift done ✓\n\n⏱ '+hours+' hours\n🚪 '+doors+' doors knocked\n✏️ '+touched+' leads worked\n💰 '+deals+' deals closed',{ok:'Nice',noCancel:true});
+}
+
+/* ================= NEAR ME ================= */
+let leadLoc=null,nearMode=false;
+function sortNear(btn){
+  document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  toast('Locating…');
+  getLoc().then(l=>{
+    if(!l)return toast('Location unavailable — allow location access');
+    leadLoc=l;sortBy='near';renderLeads();
+  });
+}
+async function nearMe(){
+  toast('Locating…');
+  const me=await getLoc();
+  if(!me)return toast('Location unavailable — allow location access');
+  toast('Finding stores around you…');
+  try{
+    const j=await api('nearby',{lat:me.lat,lng:me.lng});
+    let added=0;
+    j.prospects.forEach(p=>{
+      p.dist=hav(me,p);
+      if(alive().some(b=>b.placeId===p.placeId))return;
+      const ex=S.prospects.find(x=>x.placeId===p.placeId);
+      if(ex)Object.assign(ex,p,{sel:ex.sel});else{S.prospects.push(p);added++;}
+    });
+    nearMode=true;save();renderPros();
+    toast(j.prospects.length+' stores within ~500m — nearest first');
+  }catch(e){toast('Near-me failed: '+e.message);}
 }
 
 /* ================= ROUTE OPTIMIZER ================= */
@@ -1271,13 +1387,13 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='8';
-const WHATS_NEW="What's new in this update:\n\n💰 Cleaner money stats — MRR removed. Now: \"All payments\" (tap it to see who paid what), \"Expected\" (still owed), \"Paid & confirmed\" (fully settled).\n\n🧾 Record payment now asks \"do they still owe?\" — answer it and totals + PAID IN FULL work themselves out. No more going into Edit.\n\n📲 New button on leads: text the store's review page link straight to the number you set in Settings.\n\n🗑 Prospects tab has a Clear button to start fresh searches.\n\n🖥 The app no longer stretches on desktop/iPad landscape.";
+const APP_VERSION='9';
+const WHATS_NEW="What's new in this update:\n\n👤 Worker logins — enter your name + PIN when the app opens. You see your own leads; the owner sees everyone's (with a Mine/All toggle and worker tags).\n\n📍 \"Stores near me right now\" in Prospects — one tap lists every business around you, nearest first, so you can add the store you're standing at without typing.\n\n📍 \"Near me\" sort in Leads — your leads ordered by distance from where you stand.\n\n⏱ Clock in / out on the dashboard — your shift logs hours, doors knocked, leads worked, and deals closed to the team sheet.\n\n🗑 Fixed the Clear button on iPads.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
-    ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();});
+    ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();checkLogin();});
   },800);
-}
+}else checkLogin();
 </script>
 </body>
 </html>
