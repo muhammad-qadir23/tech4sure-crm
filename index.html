@@ -71,7 +71,7 @@ label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
 .check.done span{color:var(--mut);text-decoration:line-through}
 .fab{position:fixed;bottom:84px;right:18px;width:56px;height:56px;border-radius:50%;background:var(--acc);color:#082f49;border:none;font-size:1.9rem;font-weight:700;z-index:55;box-shadow:0 4px 14px #0008;cursor:pointer;display:none}
 .fab.show{display:block}
-.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--grn);color:#052e16;padding:10px 20px;border-radius:999px;font-weight:600;font-size:.85rem;z-index:400;display:none;white-space:nowrap}
+.toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:var(--grn);color:#052e16;padding:10px 20px;border-radius:16px;font-weight:600;font-size:.85rem;z-index:400;display:none;max-width:88vw;text-align:center}
 .small{font-size:.78rem;color:var(--mut)} .mb0{margin-bottom:0}
 .due{border-left:3px solid var(--amb)}
 .overdue{border-left:3px solid var(--red)}
@@ -82,7 +82,9 @@ label{font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px}
 hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .wbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
-.dialog{max-width:420px;margin:25vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.dialog{max-width:420px;width:calc(100% - 28px);margin:18vh auto 0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.knock>div:first-child{min-width:0;flex:1}
+.knock .small{overflow-wrap:break-word}
 .payrow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .payrow span{flex:1;font-size:.88rem}
 .notebox{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:.82rem;line-height:1.7;white-space:pre-wrap;margin-bottom:10px;max-height:180px;overflow-y:auto}
@@ -252,6 +254,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <input type="file" id="impCsv" accept=".csv" style="display:none" onchange="importCSV(this)">
     <input type="file" id="impJson" accept=".json" style="display:none" onchange="importJSON(this)">
     <p class="small" style="margin-top:10px">With Team Sync on, the Google Sheet is the master backup — every change is saved there automatically. CSV/JSON export is an extra local safety net.</p>
+  </div>
+  <div class="card">
+    <h2>💡 Suggestion box</h2>
+    <textarea id="sSuggest" placeholder="Ideas, annoyances, feature requests — goes straight to the team sheet for the next update"></textarea>
+    <button class="btn sec" onclick="sendSuggestion()">Send suggestion</button>
   </div>
   <button class="btn danger" onclick="wipe()">Delete ALL data</button>
 </div>
@@ -497,7 +504,7 @@ const $=id=>document.getElementById(id);
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function daysFrom(dateStr){return Math.floor((new Date(today())-new Date(dateStr))/864e5);}
-function stamp(){const d=new Date();return (d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+function stamp(){const d=new Date();const n=(typeof wname==='function'&&wname())?' · '+wname():'';return (d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+n;}
 function fmtTime(t){if(!t)return'';const[h,m]=t.split(':');const hr=+h;return(hr%12||12)+':'+m+(hr<12?' AM':' PM');}
 function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._x);t._x=setTimeout(()=>t.style.display='none',1800);}
 /* in-app dialog — native confirm()/alert()/prompt() freeze iPad home-screen web apps */
@@ -665,7 +672,7 @@ function bizCard(b,extra){
     ${+b.cardPrice>0?'<span class="badge s-p">🪪 $'+esc(b.cardPrice)+'</span>':''}
     ${payInfo(b).bal>0?'<span class="badge trial-r">💵 owes $'+payInfo(b).bal+'</span>':''}
     ${proofReady(b)?'<span class="badge trial-g">📈 proof ready</span>':''}
-    ${(S.worker&&S.worker.role==='admin'&&b.rep)?'<span class="badge s-nv">👤 '+esc(b.rep)+'</span>':''}</div>
+    ${b.rep?'<span class="badge s-nv">👤 '+esc(b.rep)+'</span>':''}</div>
     <div class="meta">${esc([b.type,b.address].filter(Boolean).join(' · '))}${b.nfc?' · 🪪 '+esc(b.nfc):''}</div>
     ${ln?`<div class="meta">📝 ${esc(ln)}</div>`:''}
   </div>`;
@@ -834,7 +841,8 @@ function openDetail(id){
     ${b.type?'🏷 '+esc(b.type)+'<br>':''}
     ${b.address?'📍 '+esc(b.address)+'<br>':''}
     ${b.phone?'📞 <a class="link" href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a><br>':''}
-    ${b.contact?'👤 '+esc(b.contact)+'<br>':''}
+    ${b.contact?'👤 Contact: '+esc(b.contact)+'<br>':''}
+    ${b.rep?'🧑‍💼 Assigned to: <b>'+esc(b.rep)+'</b><br>':''}
     ${b.nfc?'🪪 NFC card: '+esc(b.nfc)+'<br>':''}
     ${fu?'📅 Follow-up: <b style="color:var(--amb)">'+esc(fu)+'</b><br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
@@ -1250,6 +1258,15 @@ async function doLogin(){
     toast('Welcome, '+n+(j.role==='admin'?' (admin)':'')+' 👋');
   }catch(e){$('lgErr').textContent=e.message;}
 }
+async function sendSuggestion(){
+  const t=$('sSuggest').value.trim();
+  if(!t)return toast('Write a suggestion first');
+  try{
+    await api('suggest',{worker:wname(),text:t});
+    $('sSuggest').value='';
+    toast('💡 Suggestion saved — thank you!');
+  }catch(e){toast('Failed: '+e.message);}
+}
 async function logout(){
   const yes=await ask('Log out? Next person will enter their own name + PIN.',{ok:'Log out'});
   if(!yes)return;
@@ -1387,8 +1404,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='9';
-const WHATS_NEW="What's new in this update:\n\n👤 Worker logins — enter your name + PIN when the app opens. You see your own leads; the owner sees everyone's (with a Mine/All toggle and worker tags).\n\n📍 \"Stores near me right now\" in Prospects — one tap lists every business around you, nearest first, so you can add the store you're standing at without typing.\n\n📍 \"Near me\" sort in Leads — your leads ordered by distance from where you stand.\n\n⏱ Clock in / out on the dashboard — your shift logs hours, doors knocked, leads worked, and deals closed to the team sheet.\n\n🗑 Fixed the Clear button on iPads.";
+const APP_VERSION='10';
+const WHATS_NEW="What's new in this update:\n\n👤 Worker logins (name + PIN) — you see your leads, the owner sees everyone's with worker tags.\n\n✍️ Every note, payment, and status change is now stamped with WHO did it — money collected shows the collector's name.\n\n📍 \"Stores near me right now\" + \"Near me\" lead sort — no typing at the door.\n\n⏱ Clock in / out — shifts log hours, doors, leads worked, deals.\n\n💡 Suggestion box in Settings — ideas go straight to the team sheet.\n\n📱 Fixed text running off the screen on phones.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();checkLogin();});
