@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tech4Sure">
 <title>Tech4Sure — Review Card CRM</title>
-<!-- v9.0 BETA: worker logins (name+PIN via Workers sheet tab), per-worker lead visibility + admin view, near-me store search, distance sorting, clock in/out with shift stats -->
+<!-- v11 BETA (Stage 3): Telegram instant pings on deals + payments, backend v4 digest feed for n8n AI reports -->
 <style>
 :root{
   --bg:#0f172a; --card:#1e293b; --card2:#273549; --line:#334155;
@@ -215,6 +215,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <label>Backend URL (Apps Script /exec)</label><input id="sBackend" placeholder="https://script.google.com/macros/s/…/exec">
     <label>Team key</label><input id="sKey" placeholder="same key set in Script Properties">
     <button class="btn sec" onclick="syncNow(false)">🔄 Sync now</button>
+    <div class="check" style="border:none;margin-top:8px"><input type="checkbox" id="sPings"><span>📣 Post wins to the Telegram team group</span></div>
     <button class="btn sec" style="margin-top:8px" onclick="logout()">👤 Switch worker (log out)</button>
     <p class="small" style="margin-top:8px" id="syncInfo">Auto-backs up to the team database a few seconds after every change.</p>
   </div>
@@ -782,7 +783,7 @@ function cancelWizard(){
 function applyStatus(){
   const id=$('wId').value,st=$('wStatus').value;
   const b=S.biz.find(x=>x.id===id);if(!b)return;
-  b.status=st;b.updatedAt=new Date().toISOString();
+  const prevSt=b.status;b.status=st;b.updatedAt=new Date().toISOString();
   if(st!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
   if(st==='Active Customer'){
     b.plan=$('wPlan').value;b.intro=$('wIntro').checked;
@@ -815,6 +816,9 @@ function applyStatus(){
     }
   }
   if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
+  const wizPay=payBoxOn?(+$('wPayAmt').value||0):0;
+  if(wizPay)pingTeam('\ud83d\udcb5 $'+wizPay+' collected ('+$('wPayMethod').value.toLowerCase()+') \u2014 '+b.name+'\n\ud83d\udc64 '+(wname()||'team')+(payInfo(b).bal>0?'\n\u23f3 balance $'+payInfo(b).bal:' \u2713 paid in full'));
+  if(st==='Active Customer'&&prevSt!=='Active Customer')pingTeam('\ud83d\udcb0 DEAL CLOSED \u2014 '+b.name+(price(b)?' ($'+price(b)+'/mo)':'')+'\n\ud83d\udc64 '+(wname()||'team')+(b.address?'\n\ud83d\udccd '+b.address:''));
   save();closeM('mStatus');
   openDetail(id);
   renderLeads();renderDash();
@@ -933,6 +937,7 @@ function savePay(){
   const owedSel=$('pOwed').value;
   if(owedSel==='no')b.amountDue=+b.amountPaid||0;
   else if(owedSel==='yes')b.amountDue=(+b.amountPaid||0)+(+$('pOwedAmt').value||0);
+  const prevPayStatus=b.status;
   b.status=$('pStatus').value;
   if(b.status!=='Not Visited'&&!b.visitedAt)b.visitedAt=today();
   b.followUp=$('pFDate').value;b.followUpTime=$('pFTime').value;
@@ -944,6 +949,9 @@ function savePay(){
   const note=$('pNote').value.trim();
   if(note)entry=(entry?entry+' · ':'')+note;
   if(entry)b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] '+entry;
+  if(amt)pingTeam('\ud83d\udcb5 $'+amt+' collected ('+$('pMethod').value.toLowerCase()+') \u2014 '+b.name+'\n\ud83d\udc64 '+(wname()||'team')+(bal>0?'\n\u23f3 balance $'+bal:' \u2713 paid in full'));
+  if(cards)pingTeam('\ud83e\udeaa '+cards+' card'+(cards>1?'s':'')+' placed \u2014 '+b.name+'\n\ud83d\udc64 '+(wname()||'team'));
+  if(b.status==='Active Customer'&&prevPayStatus!=='Active Customer')pingTeam('\ud83d\udcb0 DEAL CLOSED \u2014 '+b.name+'\n\ud83d\udc64 '+(wname()||'team'));
   save();closeM('mPay');
   openDetail(id);
   renderLeads();renderDash();
@@ -1044,6 +1052,7 @@ function renderSettings(){
   $('sScript').value=s.script||DEFAULT_SCRIPT;
   $('sEnd').value=s.endTime||'17:00';$('sBackend').value=s.backend||'';$('sKey').value=s.teamKey||'';
   $('sTextTo').value=s.textTo||'';
+  $('sPings').checked=s.pings!==false;
   $('syncInfo').textContent=S.lastSync?('Last backed up: '+new Date(S.lastSync).toLocaleString()+'. Auto-backs up a few seconds after every change.'):'Auto-backs up to the team database a few seconds after every change.';
 }
 function saveSettings(){
@@ -1057,6 +1066,7 @@ function saveSettings(){
   s.script=$('sScript').value;
   s.endTime=$('sEnd').value||'17:00';s.backend=$('sBackend').value.trim();s.teamKey=$('sKey').value.trim();
   s.textTo=$('sTextTo').value.trim();
+  s.pings=$('sPings').checked;
   $('hdrBrand').textContent=s.brand;
   save();toast('Settings saved ✓');
 }
@@ -1143,6 +1153,13 @@ async function api(action,payload){
   if(!j.ok)throw new Error(j.error||'server error');
   return j;
 }
+/* fire-and-forget Telegram ping to the team group (backend holds the token) */
+function pingTeam(text){
+  try{
+    if(!S.settings.backend||S.settings.pings===false)return;
+    api('ping',{text:text}).catch(()=>{});
+  }catch(e){}
+}
 function normBiz(b){
   b.intro=(b.intro==1||b.intro===true);
   b.deleted=(b.deleted===true||b.deleted==='true'||b.deleted==='TRUE'||b.deleted==1);
@@ -1171,7 +1188,7 @@ async function syncNow(silent){
   try{
     if(!silent)toast('Syncing…');
     const j=await api('push',{rep:S.settings.rep,biz:S.biz});
-    if((j.v||0)<3&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
+    if((j.v||0)<4&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
     S.biz=mergeServer(j.biz||[]);
     S.lastSync=Date.now();
     localStorage.setItem(KEY,JSON.stringify(S));
@@ -1404,8 +1421,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='10';
-const WHATS_NEW="What's new in this update:\n\n👤 Worker logins (name + PIN) — you see your leads, the owner sees everyone's with worker tags.\n\n✍️ Every note, payment, and status change is now stamped with WHO did it — money collected shows the collector's name.\n\n📍 \"Stores near me right now\" + \"Near me\" lead sort — no typing at the door.\n\n⏱ Clock in / out — shifts log hours, doors, leads worked, deals.\n\n💡 Suggestion box in Settings — ideas go straight to the team sheet.\n\n📱 Fixed text running off the screen on phones.";
+const APP_VERSION='11';
+const WHATS_NEW="What's new in this update:\n\n\ud83d\udcf2 Telegram team group is live \u2014 when you close a deal or collect money, the whole team sees it instantly. Turn it off any time in Settings \u2192 Team Sync.\n\n\ud83c\udf05 Every morning the group gets the day's game plan: follow-ups due (with times), balances to collect, trials ending, and leads whose reviews grew enough to go ask for the sale.\n\n\ud83d\udcca Monday evenings: a team report \u2014 who did what last week, what's working, what to fix.\n\n\ud83d\udca1 Keep using the Suggestion box in Settings \u2014 those go into the weekly report.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();checkLogin();});
