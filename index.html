@@ -125,6 +125,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div class="stat"><div class="v grn" id="stConfirmed">$0</div><div class="l">✅ Paid & confirmed</div></div>
   </div>
 
+  <div class="card" id="teamCard" style="display:none;margin-top:12px">
+    <h2>👥 Team activity</h2>
+    <div id="teamList"></div>
+  </div>
+
   <div class="card" style="margin-top:12px">
     <h2>🔔 Follow-ups due now</h2>
     <div id="dueList"><p class="small">Nothing due. Go knock doors.</p></div>
@@ -223,18 +228,25 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <h2>💳 Stripe Payment Links</h2>
     <label>SEO plan link</label><input id="sStripeSeo" placeholder="https://buy.stripe.com/…">
     <label>SEO Plan - Free Trial</label><input id="sStripeTrial" placeholder="https://buy.stripe.com/…">
+    <label>Google Review Cards - $20</label><input id="sStripeC20" placeholder="https://buy.stripe.com/…">
     <label>Google Review Cards - $30</label><input id="sStripeC30" placeholder="https://buy.stripe.com/…">
     <label>Google Review Cards - $40</label><input id="sStripeC40" placeholder="https://buy.stripe.com/…">
     <label>Google Review Cards - $50</label><input id="sStripeC50" placeholder="https://buy.stripe.com/…">
   </div>
   <div class="card">
-    <h2>💰 Pricing ($/mo)</h2>
-    <div class="two">
-      <div><label>SEO — standard</label><input id="sPriceSeo" type="number" inputmode="decimal"></div>
-      <div><label>Website add-on — standard</label><input id="sPriceWeb" type="number" inputmode="decimal"></div>
-      <div><label>SEO — intro discount</label><input id="sIntroSeo" type="number" inputmode="decimal"></div>
-      <div><label>Website — intro discount</label><input id="sIntroWeb" type="number" inputmode="decimal"></div>
+    <h2>💰 What we charge</h2>
+    <p class="small" style="margin-bottom:10px"><b>Intro</b> = what you quote at the door today. <b>Standard</b> = full price for later signups.</p>
+    <label>SEO plan — $/month</label>
+    <div class="row" style="margin-bottom:10px">
+      <input id="sIntroSeo" type="number" inputmode="decimal" placeholder="intro" oninput="pricePreview()" style="margin-bottom:0">
+      <input id="sPriceSeo" type="number" inputmode="decimal" placeholder="standard" oninput="pricePreview()" style="margin-bottom:0">
     </div>
+    <label>Website add-on — extra $/month</label>
+    <div class="row" style="margin-bottom:10px">
+      <input id="sIntroWeb" type="number" inputmode="decimal" placeholder="intro" oninput="pricePreview()" style="margin-bottom:0">
+      <input id="sPriceWeb" type="number" inputmode="decimal" placeholder="standard" oninput="pricePreview()" style="margin-bottom:0">
+    </div>
+    <p class="small" id="pricePrev"></p>
   </div>
   <div class="card">
     <h2>📝 Door Script</h2>
@@ -261,7 +273,13 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <textarea id="sSuggest" placeholder="Ideas, annoyances, feature requests — goes straight to the team sheet for the next update"></textarea>
     <button class="btn sec" onclick="sendSuggestion()">Send suggestion</button>
   </div>
-  <button class="btn danger" onclick="wipe()">Delete ALL data</button>
+  <div id="advWrap" style="display:none">
+    <p class="small" style="text-align:center;margin:14px 0 6px;cursor:pointer" onclick="document.getElementById('dangerZone').style.display='block';this.style.display='none'">\u26a0\ufe0f Advanced \u2014 tap to show</p>
+    <div id="dangerZone" style="display:none">
+      <p class="small" style="margin-bottom:8px">Wipes this device only. The team database keeps everything \u2014 you'd get it back on the next sync.</p>
+      <button class="btn danger" onclick="wipe()">Delete all data on this device</button>
+    </div>
+  </div>
 </div>
 
 <!-- Bottom nav -->
@@ -348,7 +366,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   </div>
   <div class="wbox" id="wCardBox" style="display:none">
     <h3 style="margin-bottom:8px">🪪 Card sale & payment</h3>
-    <select id="wCard" onchange="if(this.value)document.getElementById('wDue').value=this.value"><option value="">No card sale</option><option value="30">Google Review Card — $30</option><option value="40">Google Review Card — $40</option><option value="50">Google Review Card — $50</option></select>
+    <select id="wCard" onchange="if(this.value)document.getElementById('wDue').value=this.value"><option value="">No card sale</option><option value="20">Google Review Card — $20</option><option value="30">Google Review Card — $30</option><option value="40">Google Review Card — $40</option><option value="50">Google Review Card — $50</option></select>
     <label>Total due for this deal ($)</label>
     <input id="wDue" type="number" inputmode="decimal" placeholder="auto-set from card, edit if different">
     <label>Collected right now ($) — optional</label>
@@ -389,6 +407,9 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <button class="btn" onclick="applyStatus()">Save update</button>
   <div style="height:30px"></div>
 </div></div>
+
+<!-- ============ WORKER DETAIL MODAL ============ -->
+<div class="modal" id="mWorker"><div class="sheet" id="workerBody"></div></div>
 
 <!-- ============ PAYMENTS LIST MODAL ============ -->
 <div class="modal" id="mPayList"><div class="sheet">
@@ -469,11 +490,11 @@ const OBJECTIONS=[
  ["“I don't have a website.”","Even better — that's exactly who we help most. Your Google profile IS your website for local customers. And if you want a real site, we build one for just {priceWeb}/mo extra on the plan. Most shops around here pay 10x that."]
 ];
 const CHECKLIST=['NFC cards in pocket','Phone charged + power bank','Tested a card tap this morning','Stripe payment links working','Business cards / flyers','Water + good shoes 😄'];
-const PAY_ITEMS=[['seo','SEO plan'],['trial','SEO Free Trial'],['c30','Card $30'],['c40','Card $40'],['c50','Card $50']];
+const PAY_ITEMS=[['seo','SEO plan'],['trial','SEO Free Trial'],['c20','Card $20'],['c30','Card $30'],['c40','Card $40'],['c50','Card $50']];
 
 let S=load();
 S.prospects=S.prospects||[];
-S.settings=Object.assign({backend:'',teamKey:'',endTime:'17:00',stripeTrial:'',stripeC30:'',stripeC40:'',stripeC50:''},S.settings);
+S.settings=Object.assign({backend:'',teamKey:'',endTime:'17:00',stripeTrial:'',stripeC20:'',stripeC30:'',stripeC40:'',stripeC50:''},S.settings);
 if(!S.settings.stripeTrial&&S.settings.stripeWeb)S.settings.stripeTrial=S.settings.stripeWeb;
 S.biz.forEach(b=>{if(RENAME[b.status])b.status=RENAME[b.status];});
 function load(){
@@ -571,7 +592,7 @@ function wPayChip(n){$('wPayAmt').value=n;}
 function payChip(n){$('pAmt').value=n;}
 function stripeLink(which){
   const s=S.settings;
-  const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
+  const map={seo:[s.stripeSeo,'SEO plan'],trial:[s.stripeTrial,'SEO Free Trial'],c20:[s.stripeC20,'Card $20'],c30:[s.stripeC30,'Card $30'],c40:[s.stripeC40,'Card $40'],c50:[s.stripeC50,'Card $50']};
   return map[which]||['',''];
 }
 function copyStripe(which){
@@ -613,7 +634,7 @@ function fuKey(b){return (b.followUp||'9999')+' '+(b.followUpTime||'99:99');}
 function renderDash(){
   const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
   const biz=visibleBiz();
-  renderClock();
+  renderClock();renderTeam();
   $('knockCount').textContent=k;$('knockGoal').textContent=goal;
   $('knockBar').style.width=Math.min(100,k/goal*100)+'%';
   const wk=d=>daysFrom(d)<7;
@@ -647,12 +668,75 @@ function renderDash(){
   $('hdrCount').textContent=biz.length+' businesses'+sync;
 }
 
+/* ================= TEAM VIEW (admin) ================= */
+let teamRows=[];
+function workerStats(name){
+  const t=today();
+  const mine=alive().filter(b=>(b.rep||'')===name);
+  const paid=mine.reduce((a,b)=>a+(+b.amountPaid||0),0);
+  const owed=mine.reduce((a,b)=>a+payInfo(b).bal,0);
+  const shift=(S.shift&&wname()===name)?1:0;
+  return {
+    name, leads:mine.length,
+    visitedToday:mine.filter(b=>b.visitedAt===t).length,
+    deals:mine.filter(b=>b.status==='Active Customer').length,
+    trials:mine.filter(b=>b.status==='Trial Started').length,
+    dueNow:mine.filter(b=>b.followUp&&b.followUp<=t&&b.status!=='Declined').length,
+    cards:mine.reduce((a,b)=>a+(+b.cardCount||(+b.cardPrice>0?1:0)),0),
+    paid, owed, onShift:shift,
+    last:mine.reduce((m,b)=>(b.updatedAt&&b.updatedAt>m)?b.updatedAt:m,'')
+  };
+}
+function renderTeam(){
+  const card=$('teamCard');
+  if(!(S.worker&&S.worker.role==='admin')){card.style.display='none';return;}
+  card.style.display='block';
+  teamRows=workerNames().map(workerStats).sort((a,b)=>b.deals-a.deals||b.paid-a.paid);
+  const un=alive().filter(b=>!b.rep).length;
+  $('teamList').innerHTML=(teamRows.length?teamRows.map((w,i)=>`
+    <div class="biz" onclick="openWorker(${i})">
+      <div class="nm">${esc(w.name)}
+        <span class="badge s-p">\ud83d\udcb0 $${w.paid}</span>
+        ${w.owed>0?`<span class="badge trial-r">\u23f3 $${w.owed} owed</span>`:''}
+        ${w.dueNow>0?`<span class="badge trial-a">\ud83d\udd14 ${w.dueNow} due</span>`:''}
+      </div>
+      <div class="meta">${w.leads} leads \u00b7 ${w.deals} customers \u00b7 ${w.trials} trials \u00b7 ${w.cards} cards \u00b7 ${w.visitedToday} visited today</div>
+      <div class="meta">${w.last?'last update '+esc(String(w.last).slice(0,10)):'no activity yet'}</div>
+    </div>`).join(''):'<p class="small">No workers yet.</p>')
+    +(un?`<p class="small">\u26a0\ufe0f ${un} lead${un>1?'s':''} with nobody assigned \u2014 open one and set "Assigned to".</p>`:'');
+}
+function openWorker(i){
+  const w=teamRows[i];if(!w)return;
+  const feed=alive().filter(b=>(b.rep||'')===w.name)
+    .sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).slice(0,25);
+  $('workerBody').innerHTML=`
+  <div class="sheet-head"><h2 class="mb0">\ud83d\udc64 ${esc(w.name)}</h2><button class="x" onclick="closeM('mWorker')">\u2715</button></div>
+  <div class="grid2">
+    <div class="stat"><div class="v">${w.leads}</div><div class="l">Leads</div></div>
+    <div class="stat"><div class="v grn">${w.deals}</div><div class="l">Customers</div></div>
+    <div class="stat"><div class="v amb">${w.trials}</div><div class="l">Active trials</div></div>
+    <div class="stat"><div class="v amb">${w.cards}</div><div class="l">Cards placed</div></div>
+    <div class="stat"><div class="v grn">$${w.paid}</div><div class="l">Collected</div></div>
+    <div class="stat"><div class="v ${w.owed>0?'amb':'grn'}">$${w.owed}</div><div class="l">Still owed</div></div>
+  </div>
+  <button class="btn sec" style="margin:12px 0" onclick="closeM('mWorker');filterRep='${esc(w.name)}';document.querySelector('nav button[data-t=leads]').click()">\ud83d\udccb Show only their leads</button>
+  <h3 style="margin-bottom:6px">\ud83d\udd52 Recent activity</h3>
+  ${feed.length?feed.map(b=>`<div class="biz" onclick="closeM('mWorker');openDetail('${b.id}')">
+      <div class="nm">${esc(b.name)} <span class="badge ${SCLASS[b.status]}">${esc(b.status)}</span></div>
+      <div class="meta">${b.updatedAt?esc(String(b.updatedAt).slice(0,10)):''}${lastNote(b)?' \u00b7 \ud83d\udcdd '+esc(lastNote(b)):''}</div>
+    </div>`).join(''):'<p class="small">Nothing logged yet.</p>'}
+  <div style="height:30px"></div>`;
+  $('mWorker').classList.add('open');window.scrollTo(0,0);
+}
+
 /* ================= LEADS ================= */
-let filterStatus='All',sortBy='new';
+let filterStatus='All',sortBy='new',filterRep='';
 function setSort(s,btn){sortBy=s;document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderLeads();}
 function renderChips(){
   const biz=visibleBiz();
-  $('adminToggle').innerHTML=(S.worker&&S.worker.role==='admin')?`<button class="chip ${adminAll?'on':''}" onclick="adminAll=!adminAll;renderLeads();renderDash()">${adminAll?'👥 All workers':'👤 Mine only'}</button>`:'';
+  const repChip=filterRep?`<button class="chip on" onclick="filterRep='';renderLeads()">\ud83d\udc64 ${esc(filterRep)} \u2715</button>`:'';
+  const allChip=(S.worker&&S.worker.role==='admin')?`<button class="chip ${adminAll?'on':''}" onclick="adminAll=!adminAll;renderLeads();renderDash()">${adminAll?'👥 All workers':'👤 Mine only'}</button>`:'';
+  $('adminToggle').innerHTML=repChip+allChip;
   const counts={All:biz.length};STATUSES.forEach(s=>counts[s]=biz.filter(b=>b.status===s).length);
   const fuC=biz.filter(b=>b.followUp).length;
   const noC=biz.filter(b=>!b.followUp&&b.status!=='Declined').length;
@@ -682,6 +766,7 @@ function renderLeads(){
   renderChips();
   const q=($('q').value||'').toLowerCase();
   let list=visibleBiz().filter(b=>filterStatus==='All'?true:filterStatus==='__fu'?!!b.followUp:filterStatus==='__nofu'?(!b.followUp&&b.status!=='Declined'):b.status===filterStatus);
+  if(filterRep)list=list.filter(b=>(b.rep||'')===filterRep);
   if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
   if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
   if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
@@ -846,7 +931,7 @@ function openDetail(id){
     ${b.address?'📍 '+esc(b.address)+'<br>':''}
     ${b.phone?'📞 <a class="link" href="tel:'+esc(b.phone)+'">'+esc(b.phone)+'</a><br>':''}
     ${b.contact?'👤 Contact: '+esc(b.contact)+'<br>':''}
-    ${b.rep?'🧑‍💼 Assigned to: <b>'+esc(b.rep)+'</b><br>':''}
+
     ${b.nfc?'🪪 NFC card: '+esc(b.nfc)+'<br>':''}
     ${fu?'📅 Follow-up: <b style="color:var(--amb)">'+esc(fu)+'</b><br>':''}
     ${b.hasWebsite==='no'?'🌐 <b style="color:var(--amb)">No website — pitch the add-on!</b><br>':''}
@@ -862,6 +947,11 @@ function openDetail(id){
   <h3 style="margin-bottom:6px">📝 Notes & history</h3>
   ${b.notes?`<div class="notebox">${esc(b.notes)}</div>`:'<p class="small" style="margin-bottom:10px">No notes yet.</p>'}
   <button class="btn sec" style="margin-bottom:12px" onclick="addNote('${b.id}')">＋ Add note</button>
+  <label>\ud83e\uddd1\u200d\ud83d\udcbc Assigned to</label>
+  <select onchange="reassign('${b.id}',this.value)">
+    <option value=""${b.rep?'':' selected'}>\u2014 unassigned \u2014</option>
+    ${workerNames().map(n=>`<option ${n===b.rep?'selected':''}>${esc(n)}</option>`).join('')}
+  </select>
   <label>Update status (asks quick questions)</label>
   <select onchange="statusWizard('${b.id}',this.value)">${STATUSES.map(s=>`<option ${s===b.status?'selected':''}>${s}</option>`).join('')}</select>
   ${b.reviewUrl?`
@@ -1046,20 +1136,29 @@ function renderSettings(){
   const s=S.settings;
   $('sBrand').value=s.brand;$('sRep').value=s.rep;$('sGoal').value=s.goal;
   $('sStripeSeo').value=s.stripeSeo;$('sStripeTrial').value=s.stripeTrial||'';
+  $('sStripeC20').value=s.stripeC20||'';
   $('sStripeC30').value=s.stripeC30||'';$('sStripeC40').value=s.stripeC40||'';$('sStripeC50').value=s.stripeC50||'';
   $('sPriceSeo').value=s.priceSeo;$('sPriceWeb').value=s.priceWeb;
   $('sIntroSeo').value=s.introSeo;$('sIntroWeb').value=s.introWeb;
   $('sScript').value=s.script||DEFAULT_SCRIPT;
+  pricePreview();
   $('sEnd').value=s.endTime||'17:00';$('sBackend').value=s.backend||'';$('sKey').value=s.teamKey||'';
   $('sTextTo').value=s.textTo||'';
+  $('advWrap').style.display=isAdmin()?'block':'none';
   $('sPings').checked=s.pings!==false;
   $('syncInfo').textContent=S.lastSync?('Last backed up: '+new Date(S.lastSync).toLocaleString()+'. Auto-backs up a few seconds after every change.'):'Auto-backs up to the team database a few seconds after every change.';
+}
+function pricePreview(){
+  const g=id=>+$(id).value||0;
+  const i=g('sIntroSeo'), st=g('sPriceSeo'), iw=g('sIntroWeb'), sw=g('sPriceWeb');
+  $('pricePrev').innerHTML='\ud83d\udeaa At the door today: <b>$'+i+'/mo</b> \u00b7 with website <b>$'+(i+iw)+'/mo</b><br>\ud83d\udcc4 Standard later: $'+st+'/mo \u00b7 with website $'+(st+sw)+'/mo';
 }
 function saveSettings(){
   const s=S.settings;
   s.brand=$('sBrand').value.trim()||'Tech4Sure';s.rep=$('sRep').value.trim();
   s.goal=+$('sGoal').value||30;
   s.stripeSeo=$('sStripeSeo').value.trim();s.stripeTrial=$('sStripeTrial').value.trim();
+  s.stripeC20=$('sStripeC20').value.trim();
   s.stripeC30=$('sStripeC30').value.trim();s.stripeC40=$('sStripeC40').value.trim();s.stripeC50=$('sStripeC50').value.trim();
   s.priceSeo=+$('sPriceSeo').value||97;s.priceWeb=+$('sPriceWeb').value||30;
   s.introSeo=+$('sIntroSeo').value||50;s.introWeb=+$('sIntroWeb').value||10;
@@ -1137,10 +1236,11 @@ function importJSON(inp){
   r.readAsText(f);inp.value='';
 }
 async function wipe(){
-  const a=await ask('Delete ALL data on this device?',{ok:'Continue',danger:true});
+  if(!isAdmin())return toast('Only the owner can do this');
+  const a=await ask('Delete all CRM data on THIS device?\n\nExport a backup first if you are unsure.',{ok:'Continue',danger:true});
   if(!a)return;
-  const b=await ask('Really sure? Export a backup first! This cannot be undone.',{ok:'Delete everything',danger:true});
-  if(!b)return;
+  const t=await ask('Type DELETE to confirm.',{input:true,ok:'Wipe device',danger:true});
+  if(String(t||'').trim().toUpperCase()!=='DELETE')return toast('Cancelled \u2014 nothing deleted');
   localStorage.removeItem(KEY);location.reload();
 }
 
@@ -1188,7 +1288,7 @@ async function syncNow(silent){
   try{
     if(!silent)toast('Syncing…');
     const j=await api('push',{rep:S.settings.rep,biz:S.biz});
-    if((j.v||0)<4&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
+    if((j.v||0)<5&&!warnedBackend){warnedBackend=true;setTimeout(()=>toast('⚠️ Backend outdated — repaste apps-script-backend.gs, then Deploy → New version'),2200);}
     S.biz=mergeServer(j.biz||[]);
     S.lastSync=Date.now();
     localStorage.setItem(KEY,JSON.stringify(S));
@@ -1269,6 +1369,7 @@ async function doLogin(){
   try{
     const j=await api('login',{worker:n,pin:p});
     S.worker={name:n,role:j.role||'worker'};
+    fetchWorkers();
     S.settings.rep=n;
     save();closeM('mLogin');
     renderDash();renderLeads();
@@ -1283,6 +1384,25 @@ async function sendSuggestion(){
     $('sSuggest').value='';
     toast('💡 Suggestion saved — thank you!');
   }catch(e){toast('Failed: '+e.message);}
+}
+async function fetchWorkers(){
+  try{const j=await api('workers');S.workers=j.workers||[];save();}catch(e){}
+}
+function workerNames(){
+  const set={};
+  (S.workers||[]).forEach(w=>{if(w&&w.name)set[String(w.name)]=1;});
+  alive().forEach(b=>{if(b.rep)set[String(b.rep)]=1;});
+  if(wname())set[wname()]=1;
+  return Object.keys(set).sort((a,b)=>a.localeCompare(b));
+}
+function reassign(id,to){
+  const b=S.biz.find(x=>x.id===id);if(!b)return;
+  const from=b.rep||'unassigned';
+  if(String(to)===String(b.rep||''))return;
+  b.rep=to;b.updatedAt=new Date().toISOString();
+  b.notes=(b.notes?b.notes+'\n':'')+'['+stamp()+'] reassigned '+from+' \u2192 '+(to||'unassigned');
+  save();openDetail(id);renderLeads();renderDash();
+  toast('Assigned to '+(to||'nobody'));
 }
 async function logout(){
   const yes=await ask('Log out? Next person will enter their own name + PIN.',{ok:'Log out'});
@@ -1421,8 +1541,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='11';
-const WHATS_NEW="What's new in this update:\n\n\ud83d\udcf2 Telegram team group is live \u2014 when you close a deal or collect money, the whole team sees it instantly. Turn it off any time in Settings \u2192 Team Sync.\n\n\ud83c\udf05 Every morning the group gets the day's game plan: follow-ups due (with times), balances to collect, trials ending, and leads whose reviews grew enough to go ask for the sale.\n\n\ud83d\udcca Monday evenings: a team report \u2014 who did what last week, what's working, what to fix.\n\n\ud83d\udca1 Keep using the Suggestion box in Settings \u2014 those go into the weekly report.";
+const APP_VERSION='12';
+const WHATS_NEW="What's new in this update:\n\n\ud83d\udcac Ask the bot: message the Telegram group with a question like \"how many deals this week?\" or \"who do I visit today?\" and it answers from the live CRM.\n\n\ud83d\udc65 Owner dashboard now has Team activity \u2014 every worker's leads, customers, cards, money collected and still owed, with a tap-through to their recent work.\n\n\ud83e\uddd1\u200d\ud83d\udcbc Leads can be reassigned from a dropdown inside the lead.\n\n\ud83d\udcb3 New Google Review Card $20 payment link.\n\n\ud83d\udcb0 Pricing settings simplified \u2014 intro and standard side by side with a live preview.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();checkLogin();});
