@@ -94,7 +94,10 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
 
 <header>
   <h1><span class="brand" id="hdrBrand">Tech4Sure</span> <span style="font-weight:400;color:var(--mut)">CRM</span></h1>
-  <span class="small" id="hdrCount"></span>
+  <div style="display:flex;align-items:center;gap:8px;min-width:0">
+    <span class="small" id="hdrCount" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+    <button class="chip" id="userBtn" onclick="userTap()" style="flex:0 0 auto">\ud83d\udc64 Log in</button>
+  </div>
 </header>
 
 <!-- ============ DASHBOARD ============ -->
@@ -123,6 +126,11 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
     <div class="stat" onclick="showPayments()" style="cursor:pointer"><div class="v grn" id="stCollected">$0</div><div class="l">💰 All payments · tap to view</div></div>
     <div class="stat"><div class="v amb" id="stExpected">$0</div><div class="l">⏳ Expected (still owed)</div></div>
     <div class="stat"><div class="v grn" id="stConfirmed">$0</div><div class="l">✅ Paid & confirmed</div></div>
+  </div>
+
+  <div class="card" id="viewAsCard" style="display:none;margin-top:12px">
+    <label>\ud83d\udc40 Viewing \u2014 dashboard, team list and leads all follow this</label>
+    <select id="dashRepSel" onchange="setDashRep(this.value)" style="margin-bottom:0"></select>
   </div>
 
   <div class="card" id="teamCard" style="display:none;margin-top:12px">
@@ -300,6 +308,7 @@ hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   <label>Your name (exactly as in the Workers tab)</label><input id="lgName" autocomplete="username">
   <label>PIN</label><input id="lgPin" type="password" inputmode="numeric" autocomplete="current-password">
   <button class="btn" onclick="doLogin()">Start my day</button>
+  <button class="btn sec" style="margin-top:8px" onclick="closeM('mLogin')">Not now</button>
   <p class="small" id="lgErr" style="margin-top:8px"></p>
 </div></div>
 
@@ -512,6 +521,34 @@ function save(){
 }
 const alive=()=>S.biz.filter(b=>!b.deleted);
 let adminAll=true;
+let dashRep='';                    // '' = everyone, '__un' = unassigned, else a worker name
+function dashBiz(){
+  const l=visibleBiz();
+  if(dashRep==='__un')return l.filter(b=>!b.rep);
+  if(dashRep)return l.filter(b=>(b.rep||'')===dashRep);
+  return l;
+}
+function repLabel(v){return v==='__un'?'Unassigned':v;}
+function setDashRep(v){
+  dashRep=v;filterRep=v;
+  renderDash();renderLeads();
+  toast(v?('Viewing '+repLabel(v)):'Viewing everyone');
+}
+function renderDashRep(){
+  const card=$('viewAsCard');
+  if(!(S.worker&&S.worker.role==='admin')){card.style.display='none';return;}
+  card.style.display='block';
+  const names=workerNames();
+  const un=alive().filter(b=>!b.rep).length;
+  $('dashRepSel').innerHTML=`<option value="" ${dashRep===''?'selected':''}>\ud83d\udc65 All workers (${alive().length} leads)</option>`
+    +names.map(n=>`<option value="${esc(n)}" ${dashRep===n?'selected':''}>\ud83d\udc64 ${esc(n)} (${alive().filter(b=>(b.rep||'')===n).length} leads)</option>`).join('')
+    +(un?`<option value="__un" ${dashRep==='__un'?'selected':''}>\u26a0\ufe0f Unassigned (${un} leads)</option>`:'');
+}
+function updateUserBtn(){
+  const b=$('userBtn');if(!b)return;
+  b.textContent=S.worker?('\ud83d\udc64 '+S.worker.name+(S.worker.role==='admin'?' \u2605':'')):'\ud83d\udc64 Log in';
+  b.className='chip'+(S.worker?' on':'');
+}
 function wname(){return S.worker?S.worker.name:(S.settings.rep||'');}
 function isAdmin(){return !S.worker||S.worker.role==='admin';}
 function visibleBiz(){
@@ -633,8 +670,8 @@ function knock(n){
 function fuKey(b){return (b.followUp||'9999')+' '+(b.followUpTime||'99:99');}
 function renderDash(){
   const t=today(),k=S.knocks[t]||0,goal=+S.settings.goal||30;
-  const biz=visibleBiz();
-  renderClock();renderTeam();
+  const biz=dashBiz();
+  renderClock();renderTeam();renderDashRep();updateUserBtn();
   $('knockCount').textContent=k;$('knockGoal').textContent=goal;
   $('knockBar').style.width=Math.min(100,k/goal*100)+'%';
   const wk=d=>daysFrom(d)<7;
@@ -734,7 +771,7 @@ let filterStatus='All',sortBy='new',filterRep='';
 function setSort(s,btn){sortBy=s;document.querySelectorAll('[data-sort]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderLeads();}
 function renderChips(){
   const biz=visibleBiz();
-  const repChip=filterRep?`<button class="chip on" onclick="filterRep='';renderLeads()">\ud83d\udc64 ${esc(filterRep)} \u2715</button>`:'';
+  const repChip=filterRep?`<button class="chip on" onclick="setDashRep('')">\ud83d\udc64 ${esc(repLabel(filterRep))} \u2715</button>`:'';
   const allChip=(S.worker&&S.worker.role==='admin')?`<button class="chip ${adminAll?'on':''}" onclick="adminAll=!adminAll;renderLeads();renderDash()">${adminAll?'👥 All workers':'👤 Mine only'}</button>`:'';
   $('adminToggle').innerHTML=repChip+allChip;
   const counts={All:biz.length};STATUSES.forEach(s=>counts[s]=biz.filter(b=>b.status===s).length);
@@ -766,7 +803,8 @@ function renderLeads(){
   renderChips();
   const q=($('q').value||'').toLowerCase();
   let list=visibleBiz().filter(b=>filterStatus==='All'?true:filterStatus==='__fu'?!!b.followUp:filterStatus==='__nofu'?(!b.followUp&&b.status!=='Declined'):b.status===filterStatus);
-  if(filterRep)list=list.filter(b=>(b.rep||'')===filterRep);
+  if(filterRep==='__un')list=list.filter(b=>!b.rep);
+  else if(filterRep)list=list.filter(b=>(b.rep||'')===filterRep);
   if(q)list=list.filter(b=>[b.name,b.address,b.phone,b.contact,b.notes,b.type].join(' ').toLowerCase().includes(q));
   if(sortBy==='new')list.sort((a,b)=>b.createdAt<a.createdAt?-1:1);
   if(sortBy==='name')list.sort((a,b)=>a.name.localeCompare(b.name));
@@ -1372,7 +1410,8 @@ async function doLogin(){
     fetchWorkers();
     S.settings.rep=n;
     save();closeM('mLogin');
-    renderDash();renderLeads();
+    dashRep='';filterRep='';
+    renderDash();renderLeads();updateUserBtn();
     toast('Welcome, '+n+(j.role==='admin'?' (admin)':'')+' 👋');
   }catch(e){$('lgErr').textContent=e.message;}
 }
@@ -1410,7 +1449,22 @@ async function logout(){
   S.worker=null;S.shift=null;save();location.reload();
 }
 function checkLogin(){
-  if(S.settings.backend&&S.settings.teamKey&&!S.worker)$('mLogin').classList.add('open');
+  if(S.settings.backend&&S.settings.teamKey&&!S.worker)openLogin();
+  updateUserBtn();
+}
+function openLogin(){
+  if(!S.settings.backend||!S.settings.teamKey)
+    return toast('Add the backend URL + team key in Settings \u2192 Team Sync first');
+  $('lgName').value=S.worker?S.worker.name:(S.settings.rep||'');
+  $('lgPin').value='';$('lgErr').textContent='';
+  $('mLogin').classList.add('open');window.scrollTo(0,0);
+}
+async function userTap(){
+  if(!S.worker)return openLogin();
+  const yes=await ask('Signed in as '+wname()+(S.worker.role==='admin'?' (owner)':'')+'.\n\nSwitch to a different worker?',{ok:'Switch worker'});
+  if(!yes)return;
+  S.worker=null;S.shift=null;dashRep='';filterRep='';save();
+  renderDash();renderLeads();openLogin();
 }
 
 /* ================= CLOCK IN/OUT ================= */
@@ -1541,8 +1595,8 @@ if(S.settings.backend)syncNow(true);
 setInterval(()=>{if(S.settings.backend&&!document.hidden)syncNow(true);},300000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.settings.backend)syncNow(true);});
 /* one-time what's-new popup per version */
-const APP_VERSION='12';
-const WHATS_NEW="What's new in this update:\n\n\ud83d\udcac Ask the bot: message the Telegram group with a question like \"how many deals this week?\" or \"who do I visit today?\" and it answers from the live CRM.\n\n\ud83d\udc65 Owner dashboard now has Team activity \u2014 every worker's leads, customers, cards, money collected and still owed, with a tap-through to their recent work.\n\n\ud83e\uddd1\u200d\ud83d\udcbc Leads can be reassigned from a dropdown inside the lead.\n\n\ud83d\udcb3 New Google Review Card $20 payment link.\n\n\ud83d\udcb0 Pricing settings simplified \u2014 intro and standard side by side with a live preview.";
+const APP_VERSION='12.1';
+const WHATS_NEW="What's new:\n\n\ud83d\udc64 A Log in button now sits in the top-right corner \u2014 tap it any time to sign in, or to switch to another worker. It shows who is currently signed in.\n\n\ud83d\udc40 Owners get a Viewing dropdown on the dashboard: all workers, one worker, or unassigned leads. The numbers, the team list and the Leads tab all follow your choice.";
 if(S.seenV!==APP_VERSION){
   setTimeout(()=>{
     ask(WHATS_NEW,{ok:'Got it',noCancel:true}).then(()=>{S.seenV=APP_VERSION;save();checkLogin();});
